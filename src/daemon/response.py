@@ -246,7 +246,10 @@ class Response():
             #
             # self.auth = ...
 
-
+        fmt_header = "HTTP/1.1 {} {}\r\n".format(self.status_code, self.reason)
+        for key, value in headers.items():
+            fmt_header = fmt_header + key + ": " + value + "\r\n"
+        fmt_header += "\r\n"
         return str(fmt_header).encode('utf-8')
 
 
@@ -300,5 +303,7 @@ class Response():
         #
         else:
             return self.build_notfound()
-
+        _, self._content = self.build_content(path, base_dir)
+        self._header = self.build_response_header(request)
+        
         return self._header + self._content

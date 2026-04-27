@@ -134,18 +134,18 @@ class HttpAdapter:
         msg = await reader.read(1024)
 
 
-        req.prepare(msg.decode("utf-8"), routes={})
+        req.prepare(msg.decode("utf-8"), routes=self.routes)
 
         # Handle request hook
         if req.hook:
             #
             # TODO: handle for App hook here
             #
-            response = ""
-
-        # Build response
+            result = req.hook(req.headers. req.body)
+            response = self.build_json_response(req, result)
+        else:
+            response = resp.build_response(req)
         #print("[HttpAdapter] Start **ASYNC** build_response with type {}".format(type(req)))
-        response = resp.build_response(req)
 
         # Send all the response asynchronously
         writer.write(response)

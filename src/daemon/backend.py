@@ -166,8 +166,9 @@ def run_backend(ip, port, routes):
             #          + coroutine
             #        provided handle_client routine
             #
-
-
+            if mode_async == "threading":
+                t = threading.Thread(target=handle_client , args=(ip, port, conn, addr, routes))
+                t.start()
             # @bksysnet: We provide various mechanisms to handle client connection
             #            student can merge and provide dynamic selection later
             #            this provider simplify by using mode selection variable

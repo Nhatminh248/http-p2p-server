@@ -118,13 +118,17 @@ class Request():
             # ...
             #
 
-        self._raw_heaers = ""
-        self._raw_body =  ""
+        self._raw_headers, self._raw_body = self.fetch_headers_body(request)
+        self.headers = self.prepare_headers(self._raw_headers)
         cookies = self.headers.get('cookie', '')
             #
             #  TODO: implement the cookie function here
             #        by parsing the header            #
-
+        self.cookies = {}
+        for pair in cookies.split(';'):
+            if '=' in pair:
+                key, value = pair.split('=', 1)
+                self.cookies[key.strip()] = value.strip()
         return
 
     def prepare_body(self, data, files, json=None):

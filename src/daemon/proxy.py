@@ -187,7 +187,8 @@ def run_proxy(ip, port, routes):
             #  TODO: implement the step of the client incomping connection
             #        using multi-thread programming with the
             #        provided handle_client routine
-            #
+            t = threading.Thread(target=handle_client, args=(ip, port, conn, addr, routes))
+            t.start()
     except socket.error as e:
       print("Socket error: {}".format(e))
 
