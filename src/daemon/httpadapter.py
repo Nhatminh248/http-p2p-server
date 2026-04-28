@@ -16,6 +16,17 @@ from .dictionary import CaseInsensitiveDict
 import asyncio
 import inspect
 
+import secrets
+sessions = {}
+
+def create_session(username):
+    token = secrets.token_hex(16)
+    sessions[username] = token 
+    return token
+
+def verify_session(token):
+    return token in sessions.values()
+
 class HttpAdapter:
     """
     A mutable :class:`HTTP adapter <HTTP adapter>` for managing client connections
@@ -135,6 +146,23 @@ class HttpAdapter:
 
 
         req.prepare(msg.decode("utf-8"), routes=self.routes)
+
+        if hasattr(req, 'auth') and req.auth:
+            username, password = req.auth
+
+            if not self.verify_auth(username, password):
+                writer.write(resp.build_401())
+                await writer.drain()
+                return
+
+        
+        if  req.cookies:
+            token = req.cookies.get('session', None)
+            
+            if token and not verify_session(token):
+                writer.write(resp.build_401())
+                await writer.drain()
+                return
 
         # Handle request hook
         if req.hook:
@@ -283,3 +311,15 @@ class HttpAdapter:
             headers["Proxy-Authorization"] = (username, password)
 
         return headers
+
+    def verify_auth(self, username, password):
+        with open('db/data.json', 'r', encoding='utf-8') as file:
+            data = json.load(file)
+        for user in data["users"]:
+            if user["username"] == username and user["password"] == password:
+                return True
+        return False
+    
+
+        
+        

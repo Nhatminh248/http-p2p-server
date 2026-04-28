@@ -129,6 +129,12 @@ class Request():
             if '=' in pair:
                 key, value = pair.split('=', 1)
                 self.cookies[key.strip()] = value.strip()
+
+        auth_header = self.headers.get('Authorization', None)
+        if auth_header:
+            _, encoded = auth_header.split(' ', 1)
+            self.prepare_auth(encoded)
+        
         return
 
     def prepare_body(self, data, files, json=None):
@@ -154,8 +160,9 @@ class Request():
         #
         # TODO prepare the request authentication
         #
-	# self.auth = ...
-        return
+        decoded = base64.b64decode(auth).decode('utf-8')
+        username, password = decoded.split(':',1)        
+        self.auth = (username, password)
 
     def prepare_cookies(self, cookies):
             self.headers["Cookie"] = cookies

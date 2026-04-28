@@ -271,6 +271,31 @@ class Response():
                 "404 Not Found"
             ).encode('utf-8')
 
+    def build_401(self):
+         return (
+                "HTTP/1.1 401 Unauthorized\r\n"
+                "Accept-Ranges: bytes\r\n"
+                "Content-Type: text/html\r\n"
+                "Content-Length: 13\r\n"
+                "Cache-Control: max-age=86000\r\n"
+                "WWW-Authenticate: Basic realm='Login required'\r\n"
+                "Connection: close\r\n"
+                "\r\n"
+                "401 Unauthorized"
+                ).encode('utf-8')
+
+    def build_200_with_cookie(self, token):
+        return (
+                "HTTP/1.1 200 OK \r\n"
+                f"Set-Cookie: session={token}; Path=/\r\n"
+                "Accept-Ranges: bytes\r\n"
+                "Content-Type: text/html\r\n"
+                "Content-Length: 16\r\n"
+                "Cache-Control: max-age=86000\r\n"
+                "Connection: close\r\n"
+                "\r\n"
+                "Login successful"
+                ).encode('utf-8')
 
     def build_response(self, request, envelop_content=None):
         """
