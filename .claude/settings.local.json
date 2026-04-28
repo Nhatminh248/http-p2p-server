@@ -1,7 +1,0 @@
-{
-  "permissions": {
-    "allow": [
-      "Bash(grep -n \"TODO\\\\|FIXME\\\\|auth\\\\|cookie\\\\|session\\\\|401\\\\|unauthorized\" /Users/nhatleminh/Study/2.ComputerNetwork/Assignment1/src/daemon/*.py)"
-    ]
-  }
-}
