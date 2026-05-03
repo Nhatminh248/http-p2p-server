@@ -44,8 +44,8 @@ import selectors
 sel = selectors.DefaultSelector()
 
 mode_async = "callback"
-#mode_async = "coroutine"
-mode_async = "threading"
+# mode_async = "coroutine"
+# mode_async = "threading"
 
 def handle_client(ip, port, conn, addr, routes):
     """
@@ -108,9 +108,15 @@ async def async_server(ip="0.0.0.0", port=7000, routes={}):
                isCoFunc += "**ASYNC** "
             print("   + ('{}', '{}'): {}{}".format(key[0], key[1], isCoFunc, str(value)))
 
-    async_server = await asyncio.start_server(handle_client_coroutine, ip, port)
-    async with async_server:
-        await async_server.serve_forever()
+    async def _handle_client_coroutine(reader, writer):
+        addr = writer.get_extra_info("peername")
+        print("[Backend] Invoke handle_client_coroutine accepted connection from {}".format(addr))
+        daemon = HttpAdapter(None, None, None, None, routes)
+        await daemon.handle_client_coroutine(reader, writer)
+
+    srv = await asyncio.start_server(_handle_client_coroutine, ip, port)
+    async with srv:
+        await srv.serve_forever()
     return
 
 
@@ -152,40 +158,30 @@ def run_backend(ip, port, routes):
                print("   + ('{}', '{}'): {}{}".format(key[0], key[1], isCoFunc, str(value)))
 
         if mode_async == "callback":
+            server.setblocking(False)
             sel.register(server, selectors.EVENT_READ, (handle_client_callback, ip, port, routes))
 
         while True:
-            # Accept connection
-            conn, addr = server.accept()
-
             #
-            #  TODO: implement the step of the client incomping connection
-            #        using non-blocking communication
-            #          + multi-thread
-            #          + callback
-            #          + coroutine
-            #        provided handle_client routine
+            # Non-blocking communication:
+            #   + threading: one thread per connection
+            #   + callback:  selector-driven event loop
+            #   + coroutine: handled above via asyncio (returns before reaching here)
             #
-            if mode_async == "threading":
-                t = threading.Thread(target=handle_client , args=(ip, port, conn, addr, routes))
-                t.start()
-            # @bksysnet: We provide various mechanisms to handle client connection
-            #            student can merge and provide dynamic selection later
-            #            this provider simplify by using mode selection variable
-            #            change global variable mode_async to select the mechanism
             if mode_async == "callback":
-               # Callback implementation - Event driven architecture
-               server.setblocking(False)
-
-               events = sel.select(timeout=None)
-               for key, mask in events:
-                   callback, ip, port, routes = key.data
-                   callback(key.fileobj, ip, port, conn, addr, routes)
+                # Event-driven: selector drives accept and dispatch
+                events = sel.select(timeout=None)
+                for key, mask in events:
+                    cb, _ip, _port, _routes = key.data
+                    conn, addr = key.fileobj.accept()
+                    cb(key.fileobj, _ip, _port, conn, addr, _routes)
 
             else:
-               # Baseline multi-thread implementation
-               #client_thread = threading.Thread...
-               pass
+                # Blocking accept for threading mode
+                conn, addr = server.accept()
+                if mode_async == "threading":
+                    t = threading.Thread(target=handle_client, args=(ip, port, conn, addr, routes))
+                    t.start()
 
 
     except socket.error as e:

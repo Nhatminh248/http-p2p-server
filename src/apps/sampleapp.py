@@ -11,7 +11,9 @@ import os
 import importlib.util
 import json
 
-from   daemon import AsynapRous
+from daemon import AsynapRous
+
+peer_list = {}
 
 app = AsynapRous()
 
@@ -67,6 +69,25 @@ async def hello(headers, body):
     # Convert to JSON string
     json_str = json.dumps(data)
     return (json_str.encode("utf-8"))
+
+
+
+# peer_list = {}  # { "username": {"ip": "...", "port": ...} }
+
+@app.route('/submit-info', methods=['POST'])
+def submit_info(headers="", body=""):
+    data = json.loads(body)
+    
+    peer_list["username"] = {
+        "ip": data["ip"],
+        "port": data["port"]
+    }
+    
+    return {"status": "ok"}
+
+@app.route('/get-list', methods=['GET'])
+def get_list(header="", body=""):
+    return peer_list
 
 def create_sampleapp(ip, port):
     # Prepare and launch the RESTful application

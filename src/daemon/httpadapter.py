@@ -15,8 +15,9 @@ from .dictionary import CaseInsensitiveDict
 
 import asyncio
 import inspect
-
+import json
 import secrets
+
 sessions = {}
 
 def create_session(username):
@@ -110,14 +111,33 @@ class HttpAdapter:
         req.prepare(msg, routes)
         print("[HttpAdapter] Invoke handle_client connection {}".format(addr))
 
-        # Handle request hook
-        if req.hook:
-            #
-            # TODO: handle for App hook here
-            #
-            response = ""
+        # Auth check
+        if hasattr(req, 'auth') and req.auth:
+            username, password = req.auth
+            if not self.verify_auth(username, password):
+                conn.sendall(resp.build_401())
+                conn.close()
+                return
+            if req.path == '/login':
+                token = create_session(username)
+                conn.sendall(resp.build_200_with_cookie(token))
+                conn.close()
+                return
 
-        #print("[HttpAdapter] Response content {}".format(response))
+        # Session check
+        if req.cookies:
+            token = req.cookies.get('session', None)
+            if token and not verify_session(token):
+                conn.sendall(resp.build_401())
+                conn.close()
+                return
+
+        if req.hook:
+            result = req.hook(req.headers, req.body)
+            response = self.build_json_response(req, result)
+        else:
+            response = resp.build_response(req)
+
         conn.sendall(response)
         conn.close()
 
@@ -137,9 +157,9 @@ class HttpAdapter:
         req = self.request
         # Response handler
         resp = self.response
-
-        print("[HttpAdapter] Invoke handle_client_coroutine connection {})".format(addr))
+        
         addr = writer.get_extra_info("peername")
+        print("[HttpAdapter] Invoke handle_client_coroutine connection {})".format(addr))
 
         # TODO Handle the request asynchronously
         msg = await reader.read(1024)
@@ -155,10 +175,15 @@ class HttpAdapter:
                 await writer.drain()
                 return
 
-        
-        if  req.cookies:
+            if req.path == '/login':
+                token = create_session(username)
+                writer.write(resp.build_200_with_cookie(token))
+                await writer.drain()
+                return
+
+        if req.cookies:
             token = req.cookies.get('session', None)
-            
+
             if token and not verify_session(token):
                 writer.write(resp.build_401())
                 await writer.drain()
@@ -166,10 +191,10 @@ class HttpAdapter:
 
         # Handle request hook
         if req.hook:
-            #
-            # TODO: handle for App hook here
-            #
-            result = req.hook(req.headers. req.body)
+            if inspect.iscoroutinefunction(req.hook):
+                result = await req.hook(req.headers, req.body)
+            else:
+                result = req.hook(req.headers, req.body)
             response = self.build_json_response(req, result)
         else:
             response = resp.build_response(req)
@@ -225,28 +250,28 @@ class HttpAdapter:
 
         return response
 
-    def build_json_response(self, req, resp):
-        """Builds a :class:`Response <Response>` object from JSON data
+    def build_json_response(self, req, content):
+        """Builds an HTTP 200 response with JSON body as bytes.
 
         :param req: The :class:`Request <Request>` used to generate the response.
-        :param resp: The  response object.
-        :rtype: Response
+        :param content: The handler return value — bytes, dict, or str.
+        :rtype: bytes
         """
-        response = Response(req)
-
-        # Set encoding.
-        response.raw = resp
-
-        if isinstance(req.url, bytes):
-            response.url = req.url.decode("utf-8")
+        if isinstance(content, dict):
+            body = json.dumps(content).encode('utf-8')
+        elif isinstance(content, bytes):
+            body = content
         else:
-            response.url = req.url
+            body = str(content).encode('utf-8')
 
-        # Give the Response some context.
-        response.request = req
-        response.connection = self
-
-        return response
+        header = (
+            "HTTP/1.1 200 OK\r\n"
+            "Content-Type: application/json\r\n"
+            "Content-Length: {}\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+        ).format(len(body))
+        return header.encode('utf-8') + body
 
 
     # def get_connection(self, url, proxies=None):

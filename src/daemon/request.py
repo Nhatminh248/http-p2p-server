@@ -7,6 +7,7 @@ This module provides a Request object to manage and persist
 request settings (cookies, auth, proxies).
 """
 from .dictionary import CaseInsensitiveDict
+import base64
 
 class Request():
     """The fully mutable "class" `Request <Request>` object,
@@ -70,7 +71,7 @@ class Request():
             if path == '/':
                 path = '/index.html'
         except Exception:
-            return None, None
+            return None, None, None
 
         return method, path, version
              
@@ -108,7 +109,7 @@ class Request():
         # TODO manage the webapp hook in this mounting point
         #
         
-        if not routes == {}:
+        if routes:
             self.routes = routes
             print("[Request] Routing METHOD {} path {}".format(self.method, self.path))
             self.hook = routes.get((self.method, self.path))
@@ -120,6 +121,7 @@ class Request():
 
         self._raw_headers, self._raw_body = self.fetch_headers_body(request)
         self.headers = self.prepare_headers(self._raw_headers)
+        self.body = self._raw_body
         cookies = self.headers.get('cookie', '')
             #
             #  TODO: implement the cookie function here
@@ -130,7 +132,7 @@ class Request():
                 key, value = pair.split('=', 1)
                 self.cookies[key.strip()] = value.strip()
 
-        auth_header = self.headers.get('Authorization', None)
+        auth_header = self.headers.get('authorization', None)
         if auth_header:
             _, encoded = auth_header.split(' ', 1)
             self.prepare_auth(encoded)
