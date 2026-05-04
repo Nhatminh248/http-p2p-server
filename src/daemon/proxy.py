@@ -129,10 +129,24 @@ def handle_client(ip, port, conn, addr, routes):
 
     request = conn.recv(1024).decode()
 
+    hostname = None
     # Extract hostname
     for line in request.splitlines():
         if line.lower().startswith('host:'):
             hostname = line.split(':', 1)[1].strip()
+
+    if hostname is None:
+        response = (
+            "HTTP/1.1 400 Bad Request\r\n"
+            "Content-Type: text/plain\r\n"
+            "Content-Length: 15\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            "400 Bad Request"
+        ).encode('utf-8')
+        conn.sendall(response)
+        conn.close()
+        return
 
     print("[Proxy] {} at Host: {}".format(addr, hostname))
 

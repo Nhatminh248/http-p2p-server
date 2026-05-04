@@ -81,7 +81,10 @@ async def hello(headers, body):
 
 @app.route('/submit-info', methods=['POST'])
 def submit_info(headers="", body=""):
-    data = json.loads(body)
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        return json.dumps({"error": "Invalid JSON"}).encode("utf-8")
     peer_list[data["username"]] = {
         "ip": data["ip"],
         "port": data["port"]
@@ -90,7 +93,10 @@ def submit_info(headers="", body=""):
 
 @app.route('/add-list', methods=['POST'])
 def add_list(headers="", body=""):
-    data = json.loads(body)
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        return json.dumps({"error": "Invalid JSON"}).encode("utf-8")
     peer_list[data["username"]] = {
         "ip": data["ip"],
         "port": data["port"]
@@ -126,13 +132,19 @@ def connect_peer(headers="", body=""):
     :param body: JSON string
     :rtype: bytes
     """
-    data = json.loads(body)
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        return json.dumps({"error": "Invalid JSON"}).encode("utf-8")
     target = data["username"]
     if target not in peer_list:
         return json.dumps({"error": "peer not found"}).encode("utf-8")
     info = peer_list[target]
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    sock.connect((info["ip"], info["port"]))
+    try:
+        sock.connect((info["ip"], info["port"]))
+    except (OSError, socket.timeout):
+        return json.dumps({"error": "connection failed"}).encode("utf-8")
     peer_connections[target] = sock
     return json.dumps({"status": "connected", "to": target}).encode("utf-8")
 
@@ -159,7 +171,10 @@ def send_peer(headers="", body=""):
     :param body: JSON string
     :rtype: bytes
     """
-    data = json.loads(body)
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        return json.dumps({"error": "Invalid JSON"}).encode("utf-8")
     target = data["username"]
     msg = data["message"]
     if target not in peer_list:
@@ -167,7 +182,10 @@ def send_peer(headers="", body=""):
     if target not in peer_connections:
         info = peer_list[target]
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        sock.connect((info["ip"], info["port"]))
+        try:
+            sock.connect((info["ip"], info["port"]))
+        except (OSError, socket.timeout):
+            return json.dumps({"error": "connection failed"}).encode("utf-8")
         peer_connections[target] = sock
     try:
         peer_connections[target].sendall(msg.encode("utf-8"))
@@ -200,7 +218,10 @@ def broadcast_peer(headers="", body=""):
     :param body: JSON string
     :rtype: bytes
     """
-    data = json.loads(body)
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        return json.dumps({"error": "Invalid JSON"}).encode("utf-8")
     msg = data["message"]
     sent_count = 0
     for username, info in peer_list.items():
@@ -211,7 +232,7 @@ def broadcast_peer(headers="", body=""):
                 peer_connections[username] = sock
             peer_connections[username].sendall(msg.encode("utf-8"))
             sent_count += 1
-        except OSError:
+        except (OSError, socket.timeout):
             peer_connections.pop(username, None)
     return json.dumps({"status": "broadcast sent", "count": sent_count}).encode("utf-8")
 
