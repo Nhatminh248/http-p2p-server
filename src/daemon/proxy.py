@@ -156,6 +156,7 @@ def handle_client(ip, port, conn, addr, routes):
     for line in request.splitlines():
         if line.lower().startswith('host:'):
             hostname = line.split(':', 1)[1].strip()
+            break
 
     if hostname is None:
         response = (
