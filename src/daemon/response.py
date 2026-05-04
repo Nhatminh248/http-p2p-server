@@ -147,12 +147,12 @@ class Response():
         print("[Response] Processing main_type={} sub_type={}".format(main_type,sub_type))
         if main_type == 'text':
             self.headers['Content-Type']='text/{}'.format(sub_type)
-            if sub_type == 'plain' or sub_type == 'css':
-                base_dir = BASE_DIR+"static/"
-            elif sub_type == 'html':
+            if sub_type == 'html':
                 base_dir = BASE_DIR+"www/"
+            elif sub_type in ('javascript', 'plain', 'css'):
+                base_dir = BASE_DIR+"static/"
             else:
-                handle_text_other(sub_type)
+                base_dir = BASE_DIR+"static/"
         elif main_type == 'image':
             base_dir = BASE_DIR+"static/"
             self.headers['Content-Type']='image/{}'.format(sub_type)
@@ -219,7 +219,7 @@ class Response():
         headers = {
                 "Accept": "{}".format(reqhdr.get("Accept", "application/json")),
                 "Accept-Language": "{}".format(reqhdr.get("Accept-Language", "en-US,en;q=0.9")),
-                "Authorization": "{}".format(reqhdr.get("Authorization", "Basic <credentials>")),
+                "Accept-Charset": "utf-8",
                 "Cache-Control": "no-cache",
                 "Content-Type": "{}".format(self.headers['Content-Type']),
                 "Content-Length": "{}".format(len(self._content)),
@@ -319,16 +319,16 @@ class Response():
             base_dir = self.prepare_content_type(mime_type = 'text/html')
         elif mime_type == 'text/css':
             base_dir = self.prepare_content_type(mime_type = 'text/css')
+        elif mime_type in ('text/javascript', 'application/javascript'):
+            base_dir = self.prepare_content_type(mime_type = 'text/javascript')
         elif mime_type == 'application/json' or mime_type == 'application/octet-stream':
             base_dir = self.prepare_content_type(mime_type = 'application/json')
             envelop_content = ""
-
-        #
-        # TODO: add support objects
-        #
         else:
             return self.build_notfound()
         _, self._content = self.build_content(path, base_dir)
+        self.status_code = 200
+        self.reason = "OK"
         self._header = self.build_response_header(request)
-        
+
         return self._header + self._content

@@ -30,6 +30,10 @@ PROXY_PASS = {
     "app2.local": ('192.168.56.103', 9002),
 }
 
+# Round-robin state: { hostname: current_index }
+_rr_counters = {}
+_rr_lock = threading.Lock()
+
 
 def forward_request(host, port, request):
     """
@@ -86,26 +90,21 @@ def resolve_routing_policy(hostname, routes):
     proxy_port = '9000'
     if isinstance(proxy_map, list):
         if len(proxy_map) == 0:
-            print("[Proxy] Emtpy resolved routing of hostname {}".format(hostname))
-            print("Empty proxy_map result")
-            # TODO: implement the error handling for non mapped host
-            #       the policy is design by team, but it can be 
-            #       basic default host in your self-defined system
-            # Use a dummy host to raise an invalid connection
+            print("[Proxy] Empty resolved routing of hostname {}".format(hostname))
             proxy_host = '127.0.0.1'
             proxy_port = '9000'
-        elif len(value) == 1:
-            proxy_host, proxy_port = proxy_map[0].split(":", 2)
-        #elif: # apply the policy handling 
-        #   proxy_map
-        #   policy
+        elif len(proxy_map) == 1:
+            proxy_host, proxy_port = proxy_map[0].split(":", 1)
         else:
-            # Out-of-handle mapped host
-            proxy_host = '127.0.0.1'
-            proxy_port = '9000'
+            # Round-robin across multiple backends
+            with _rr_lock:
+                idx = _rr_counters.get(hostname, 0)
+                _rr_counters[hostname] = (idx + 1) % len(proxy_map)
+            proxy_host, proxy_port = proxy_map[idx].split(":", 1)
+            print("[Proxy] Round-robin selected backend {} for {}".format(proxy_map[idx], hostname))
     else:
-        print("[Proxy] resolve route of hostname {} is a singulair to".format(hostname))
-        proxy_host, proxy_port = proxy_map.split(":", 2)
+        print("[Proxy] resolve route of hostname {} is singular to".format(hostname))
+        proxy_host, proxy_port = proxy_map.split(":", 1)
 
     return proxy_host, proxy_port
 

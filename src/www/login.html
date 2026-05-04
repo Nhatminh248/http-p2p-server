@@ -1,8 +1,185 @@
-<html><body>
-<h1>Login</h1>
-<form method="POST" action="/login">
-  Username: <input name="username" type="text"><br>
-  Password: <input name="password" type="password"><br>
-  <input type="submit" value="Login">
-</form>
-</body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Login</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: "Helvetica Neue", Arial, sans-serif;
+      background: #f7f7f7;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      color: #121212;
+    }
+
+    header {
+      width: 100%;
+      max-width: 420px;
+      text-align: center;
+      margin-bottom: 32px;
+    }
+
+    header .wordmark {
+      font-family: "Georgia", serif;
+      font-size: 13px;
+      font-weight: 700;
+      letter-spacing: 0.12em;
+      text-transform: uppercase;
+      color: #121212;
+      border-bottom: 2px solid #121212;
+      display: inline-block;
+      padding-bottom: 6px;
+      margin-bottom: 18px;
+    }
+
+    header h1 {
+      font-family: "Georgia", serif;
+      font-size: 36px;
+      font-weight: 700;
+      letter-spacing: -0.5px;
+      color: #121212;
+    }
+
+    header p {
+      font-size: 14px;
+      color: #666;
+      margin-top: 6px;
+    }
+
+    .card {
+      background: #fff;
+      border: 1px solid #d9d9d9;
+      border-radius: 4px;
+      padding: 36px 40px;
+      width: 100%;
+      max-width: 420px;
+    }
+
+    .field {
+      margin-bottom: 18px;
+    }
+
+    .field label {
+      display: block;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #121212;
+      margin-bottom: 7px;
+    }
+
+    .field input {
+      width: 100%;
+      padding: 11px 14px;
+      font-size: 15px;
+      border: 2px solid #d9d9d9;
+      border-radius: 4px;
+      outline: none;
+      transition: border-color 0.15s;
+      color: #121212;
+      background: #fff;
+    }
+
+    .field input:focus {
+      border-color: #121212;
+    }
+
+    button.primary {
+      width: 100%;
+      padding: 13px;
+      background: #121212;
+      color: #fff;
+      font-size: 14px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 8px;
+      transition: background 0.15s;
+    }
+
+    button.primary:hover { background: #333; }
+    button.primary:active { background: #000; }
+
+    #status {
+      margin-top: 16px;
+      font-size: 13px;
+      text-align: center;
+      min-height: 20px;
+      color: #c0392b;
+    }
+
+    #status.ok { color: #27ae60; }
+  </style>
+  <script>
+    async function doLogin() {
+      const username = document.getElementById("username").value.trim();
+      const password = document.getElementById("password").value;
+      const status   = document.getElementById("status");
+
+      if (!username || !password) {
+        status.className = "";
+        status.textContent = "Please enter username and password.";
+        return;
+      }
+
+      const credentials = btoa(username + ":" + password);
+
+      try {
+        const response = await fetch("/login", {
+          method: "POST",
+          headers: {
+            "Authorization": "Basic " + credentials,
+            "Content-Type": "application/json"
+          },
+          body: JSON.stringify({ username: username })
+        });
+
+        if (response.ok) {
+          status.className = "ok";
+          status.textContent = "Login successful. Redirecting...";
+          window.location.href = "/chat.html";
+        } else {
+          status.className = "";
+          status.textContent = "Login failed: " + response.status + " " + response.statusText;
+        }
+      } catch (err) {
+        status.className = "";
+        status.textContent = "Error: " + err.message;
+      }
+    }
+
+    document.addEventListener("keydown", function(e) {
+      if (e.key === "Enter") doLogin();
+    });
+  </script>
+</head>
+<body>
+  <header>
+    <div class="wordmark">AsynapRous</div>
+    <h1>Chat Login</h1>
+    <p>Sign in to join the network</p>
+  </header>
+
+  <div class="card">
+    <div class="field">
+      <label for="username">Username</label>
+      <input id="username" type="text" placeholder="alice" autocomplete="username">
+    </div>
+    <div class="field">
+      <label for="password">Password</label>
+      <input id="password" type="password" placeholder="••••••••" autocomplete="current-password">
+    </div>
+    <button class="primary" onclick="doLogin()">Sign In</button>
+    <p id="status"></p>
+  </div>
+</body>
+</html>

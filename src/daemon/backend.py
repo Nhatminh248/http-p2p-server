@@ -93,10 +93,8 @@ async def handle_client_coroutine(reader, writer):
     addr = writer.get_extra_info("peername")
     print("[Backend] Invoke handle_client_coroutine accepted connection from {}".format(addr))
 
-    # Handle client in asynchronous mode
-    while True:
-        daemon = HttpAdapter(None, None, None, None, None)
-        await daemon.handle_client_coroutine(reader, writer)
+    daemon = HttpAdapter(None, None, None, None, None)
+    await daemon.handle_client_coroutine(reader, writer)
 
 async def async_server(ip="0.0.0.0", port=7000, routes={}):
     print("[Backend] async_server **ASYNC** listening on port {}".format(port))
@@ -174,6 +172,7 @@ def run_backend(ip, port, routes):
                 for key, mask in events:
                     cb, _ip, _port, _routes = key.data
                     conn, addr = key.fileobj.accept()
+                    conn.setblocking(True)
                     cb(key.fileobj, _ip, _port, conn, addr, _routes)
 
             else:

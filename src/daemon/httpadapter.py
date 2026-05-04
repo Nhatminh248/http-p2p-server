@@ -203,8 +203,9 @@ class HttpAdapter:
         # Send all the response asynchronously
         writer.write(response)
         await writer.drain()
+        writer.close()
+        await writer.wait_closed()
 
-    @property
     def extract_cookies(self, req, resp):
         """
         Build cookies from the :class:`Request <Request>` headers.
@@ -214,12 +215,11 @@ class HttpAdapter:
         :rtype: cookies - A dictionary of cookie key-value pairs.
         """
         cookies = {}
-        for header in headers:
-            if header.startswith("Cookie:"):
-                cookie_str = header.split(":", 1)[1].strip()
-                for pair in cookie_str.split(";"):
-                    key, value = pair.strip().split("=")
-                    cookies[key] = value
+        cookie_str = req.headers.get('cookie', '')
+        for pair in cookie_str.split(';'):
+            if '=' in pair:
+                key, value = pair.strip().split('=', 1)
+                cookies[key] = value
         return cookies
 
     def build_response(self, req, resp):
@@ -338,7 +338,7 @@ class HttpAdapter:
         return headers
 
     def verify_auth(self, username, password):
-        with open('db/data.json', 'r', encoding='utf-8') as file:
+        with open('db/users.json', 'r', encoding='utf-8') as file:
             data = json.load(file)
         for user in data["users"]:
             if user["username"] == username and user["password"] == password:
