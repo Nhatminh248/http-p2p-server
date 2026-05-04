@@ -108,6 +108,27 @@ class HttpAdapter:
 
         # Handle the request
         msg = conn.recv(1024).decode()
+        
+        # Check if we need to read more based on Content-Length
+        if "\r\n\r\n" in msg:
+            header_part, body_part = msg.split("\r\n\r\n", 1)
+            content_length = 0
+            for line in header_part.splitlines():
+                if line.lower().startswith("content-length:"):
+                    try:
+                        content_length = int(line.split(":", 1)[1].strip())
+                    except ValueError:
+                        pass
+                    break
+            
+            # If body is incomplete, read the rest
+            while len(body_part.encode()) < content_length:
+                chunk = conn.recv(1024).decode()
+                if not chunk:
+                    break
+                body_part += chunk
+                msg = header_part + "\r\n\r\n" + body_part
+
         req.prepare(msg, routes)
         print("[HttpAdapter] Invoke handle_client connection {}".format(addr))
 

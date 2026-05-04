@@ -141,6 +141,7 @@ def run_backend(ip, port, routes):
 
     # Process socket object
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
 
     try:
         server.bind((ip, port))
