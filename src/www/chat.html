@@ -226,6 +226,19 @@
       margin-top: 8px;
     }
 
+    /* ── channel badge ── */
+    .ch-badge {
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: #fff;
+      background: #8e44ad;
+      border-radius: 2px;
+      padding: 2px 6px;
+      margin-right: 6px;
+      vertical-align: middle;
+    }
+
     /* ── peer list pre ── */
     #list-result {
       font-size: 12px;
@@ -315,6 +328,57 @@
       } catch(e) { out("bc-result", e.message, true); }
     }
 
+    async function listChannels() {
+      try {
+        const r    = await fetch(trackerBase() + "/list-channels");
+        const data = await r.json();
+        document.getElementById("channel-list-result").textContent = JSON.stringify(data, null, 2);
+        await Promise.all(Object.entries(data).map(([channel, members]) =>
+          post("/sync-channel", { channel, members })
+        ));
+      } catch(e) { document.getElementById("channel-list-result").textContent = "Error: " + e.message; }
+    }
+
+    async function createChannel() {
+      const channel  = document.getElementById("ch-create-name").value.trim();
+      const username = document.getElementById("reg-username").value.trim();
+      try {
+        const result = await post(trackerBase() + "/create-channel", { channel, username });
+        out("ch-result", result);
+        await listChannels();
+      } catch(e) { out("ch-result", e.message, true); }
+    }
+
+    async function joinChannel() {
+      const channel  = document.getElementById("ch-action-name").value.trim();
+      const username = document.getElementById("reg-username").value.trim();
+      try {
+        const result = await post(trackerBase() + "/join-channel", { channel, username });
+        out("ch-result", result);
+        await listChannels();
+      } catch(e) { out("ch-result", e.message, true); }
+    }
+
+    async function leaveChannel() {
+      const channel  = document.getElementById("ch-action-name").value.trim();
+      const username = document.getElementById("reg-username").value.trim();
+      try {
+        const result = await post(trackerBase() + "/leave-channel", { channel, username });
+        out("ch-result", result);
+        await listChannels();
+      } catch(e) { out("ch-result", e.message, true); }
+    }
+
+    async function sendChannel() {
+      const channel = document.getElementById("ch-send-name").value.trim();
+      const message = document.getElementById("ch-send-msg").value;
+      const from    = document.getElementById("reg-username").value.trim();
+      try {
+        const result = await post("/send-channel", { channel, message, from });
+        out("ch-result", result);
+      } catch(e) { out("ch-result", e.message, true); }
+    }
+
     async function pollMessages() {
       try {
         const r    = await fetch("/get-messages");
@@ -332,7 +396,9 @@
           const p = document.createElement("p");
           const isSent = m.from.startsWith("You →");
           p.className = isSent ? "msg-sent" : "msg-recv";
-          p.innerHTML = '<span class="badge">' + (isSent ? "To" : "From") + '</span>' +
+          const chTag = m.channel ? '<span class="ch-badge">#' + m.channel + '</span>' : '';
+          p.innerHTML = chTag +
+                        '<span class="badge">' + (isSent ? "To" : "From") + '</span>' +
                         '<strong>' + m.from.replace("You → ", "") + '</strong> — ' + m.text;
           box.appendChild(p);
         });
@@ -342,6 +408,7 @@
     window.onload = function() {
       document.getElementById("tracker-url").value = window.location.origin;
       pollMessages();
+      listChannels();
       setInterval(pollMessages, 3000);
     };
   </script>
@@ -405,6 +472,38 @@
           <button onclick="broadcastPeer()">Broadcast</button>
         </div>
         <p id="bc-result" class="result"></p>
+      </div>
+
+      <!-- Channels: spans both cols -->
+      <div class="card span2">
+        <div class="card-title">6 — Channels</div>
+
+        <div class="row">
+          <button class="outline" onclick="listChannels()">Refresh</button>
+        </div>
+        <pre id="channel-list-result" style="font-size:12px;background:#f7f7f7;border-radius:4px;padding:8px;margin-bottom:8px;white-space:pre-wrap;word-break:break-all;max-height:80px;overflow-y:auto;color:#333;"></pre>
+
+        <div class="row">
+          <label>Create</label>
+          <input id="ch-create-name" type="text" placeholder="channel name">
+          <button onclick="createChannel()">Create</button>
+        </div>
+
+        <div class="row">
+          <label>Channel</label>
+          <input id="ch-action-name" type="text" placeholder="channel name">
+          <button onclick="joinChannel()">Join</button>
+          <button class="outline" onclick="leaveChannel()">Leave</button>
+        </div>
+
+        <div class="row">
+          <label>Send</label>
+          <input id="ch-send-name" type="text" placeholder="channel" style="max-width:100px">
+          <input id="ch-send-msg" type="text" placeholder="Message…">
+          <button onclick="sendChannel()">Send</button>
+        </div>
+
+        <p id="ch-result" class="result"></p>
       </div>
 
     </div>

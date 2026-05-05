@@ -19,7 +19,9 @@ import threading
 
 peer_list = {}
 peer_connections = {}
-received_messages = []  # stores dicts: {"from": addr, "text": msg}
+received_messages = []  # stores dicts: {"from": addr, "text": msg, "channel": name or ""}
+channels = {}        # tracker-side: {channel_name: [username, ...]}
+_local_channels = {} # peer-side cache: {channel_name: [username, ...]}
 _state_lock = threading.Lock()
 _self_p2p_port = None  # set at startup; used to skip self in broadcast
 
@@ -211,7 +213,7 @@ def send_peer(headers="", body=""):
     finally:
         sock.close()
     with _state_lock:
-        received_messages.append({"from": "You → " + target, "text": msg})
+        received_messages.append({"from": "You → " + target, "text": msg, "channel": ""})
     return json.dumps({"status": "sent", "to": target}).encode("utf-8")
 
 
@@ -263,8 +265,111 @@ def broadcast_peer(headers="", body=""):
         finally:
             sock.close()
     with _state_lock:
-        received_messages.append({"from": "You → all", "text": msg})
+        received_messages.append({"from": "You → all", "text": msg, "channel": ""})
     return json.dumps({"status": "broadcast sent", "count": sent_count}).encode("utf-8")
+
+
+# ── Channel routes ────────────────────────────────────────────────────────────────────────────
+
+@app.route('/create-channel', methods=['POST'])
+def create_channel(headers="", body=""):
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        return json.dumps({"error": "Invalid JSON"}).encode("utf-8")
+    name = data.get("channel", "").strip()
+    username = data.get("username", "")
+    if not name:
+        return json.dumps({"error": "channel name required"}).encode("utf-8")
+    with _state_lock:
+        if name not in channels:
+            channels[name] = []
+        if username and username not in channels[name]:
+            channels[name].append(username)
+    return json.dumps({"status": "created", "channel": name}).encode("utf-8")
+
+@app.route('/join-channel', methods=['POST'])
+def join_channel(headers="", body=""):
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        return json.dumps({"error": "Invalid JSON"}).encode("utf-8")
+    name = data.get("channel", "")
+    username = data.get("username", "")
+    with _state_lock:
+        if name not in channels:
+            return json.dumps({"error": "channel not found"}).encode("utf-8")
+        if username not in channels[name]:
+            channels[name].append(username)
+    return json.dumps({"status": "joined", "channel": name}).encode("utf-8")
+
+@app.route('/leave-channel', methods=['POST'])
+def leave_channel(headers="", body=""):
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        return json.dumps({"error": "Invalid JSON"}).encode("utf-8")
+    name = data.get("channel", "")
+    username = data.get("username", "")
+    with _state_lock:
+        if name in channels and username in channels[name]:
+            channels[name].remove(username)
+    return json.dumps({"status": "left", "channel": name}).encode("utf-8")
+
+@app.route('/list-channels', methods=['GET'])
+def list_channels(headers="", body=""):
+    with _state_lock:
+        return json.dumps(channels).encode("utf-8")
+
+@app.route('/sync-channel', methods=['POST'])
+def sync_channel(headers="", body=""):
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        return json.dumps({"error": "Invalid JSON"}).encode("utf-8")
+    with _state_lock:
+        _local_channels[data.get("channel", "")] = data.get("members", [])
+    return json.dumps({"status": "ok"}).encode("utf-8")
+
+@app.route('/send-channel', methods=['POST'])
+def send_channel(headers="", body=""):
+    try:
+        data = json.loads(body)
+    except json.JSONDecodeError:
+        return json.dumps({"error": "Invalid JSON"}).encode("utf-8")
+    channel = data.get("channel", "")
+    msg = data.get("message", "")
+    sender = data.get("from", "")
+
+    with _state_lock:
+        if channel not in _local_channels:
+            return json.dumps({"error": "channel unknown locally, refresh first"}).encode("utf-8")
+        members = list(_local_channels[channel])
+        local_pl = dict(peer_list)
+
+    payload = json.dumps({"from": sender, "text": msg, "channel": channel}).encode("utf-8")
+    sent_count = 0
+    for username in members:
+        if username == sender:
+            continue
+        if username not in local_pl:
+            continue
+        info = local_pl[username]
+        if info["port"] == _self_p2p_port:
+            continue
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            sock.connect((info["ip"], info["port"]))
+            sock.sendall(payload)
+            sent_count += 1
+        except (OSError, socket.timeout):
+            pass
+        finally:
+            sock.close()
+    with _state_lock:
+        received_messages.append({"from": "You → #" + channel, "text": msg, "channel": channel})
+    return json.dumps({"status": "sent", "channel": channel, "count": sent_count}).encode("utf-8")
+
 
 def create_sampleapp(ip, port, peer_port=5000):
     global _self_p2p_port
@@ -309,7 +414,7 @@ def handle_peer_message(conn, addr):
                 text = raw
             print(f"[P2P] Message from {sender}: {text}")
             with _state_lock:
-                received_messages.append({"from": sender, "text": text})
+                received_messages.append({"from": sender, "text": text, "channel": payload.get("channel", "") if isinstance(payload, dict) else ""})
     finally:
         conn.close()
 
