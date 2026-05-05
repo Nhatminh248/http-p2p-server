@@ -10,22 +10,25 @@
       font-family: "Helvetica Neue", Arial, sans-serif;
       background: #f7f7f7;
       color: #121212;
-      min-height: 100vh;
+      height: 100vh;
+      overflow: hidden;
+      display: flex;
+      flex-direction: column;
     }
 
     /* ── top bar ── */
     .topbar {
+      flex-shrink: 0;
       width: 100%;
       background: #121212;
       color: #fff;
-      padding: 14px 0;
+      padding: 10px 0;
       text-align: center;
-      margin-bottom: 32px;
     }
 
     .topbar .wordmark {
       font-family: "Georgia", serif;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 700;
       letter-spacing: 0.14em;
       text-transform: uppercase;
@@ -34,50 +37,75 @@
 
     .topbar h1 {
       font-family: "Georgia", serif;
-      font-size: 26px;
+      font-size: 22px;
       font-weight: 700;
       letter-spacing: -0.3px;
-      margin-top: 2px;
+      margin-top: 1px;
     }
 
-    /* ── layout ── */
+    /* ── main layout: left controls | right inbox ── */
     .layout {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 420px 1fr;
+      gap: 12px;
+      padding: 12px 16px;
+      overflow: hidden;
+      min-height: 0;
+    }
+
+    /* ── left column: 2-col subgrid ── */
+    .left-col {
       display: grid;
       grid-template-columns: 1fr 1fr;
-      gap: 16px;
-      max-width: 860px;
-      margin: 0 auto;
-      padding: 0 16px 40px;
+      gap: 12px;
+      overflow-y: auto;
+      align-content: start;
+      padding-right: 2px;
     }
 
-    /* inbox spans full width */
-    .card.full { grid-column: 1 / -1; }
+    .left-col .span2 { grid-column: 1 / -1; }
+
+    /* ── right column: inbox fills full height ── */
+    .right-col {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
+
+    .right-col .card {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+    }
 
     /* ── card ── */
     .card {
       background: #fff;
       border: 1px solid #d9d9d9;
       border-radius: 4px;
-      padding: 20px 22px;
+      padding: 14px 16px;
     }
 
     .card-title {
-      font-size: 11px;
+      font-size: 10px;
       font-weight: 700;
       letter-spacing: 0.1em;
       text-transform: uppercase;
       color: #888;
-      margin-bottom: 14px;
-      padding-bottom: 10px;
+      margin-bottom: 10px;
+      padding-bottom: 8px;
       border-bottom: 1px solid #e8e8e8;
+      flex-shrink: 0;
     }
 
     /* ── form rows ── */
     .row {
       display: flex;
       align-items: center;
-      gap: 8px;
-      margin-bottom: 10px;
+      gap: 6px;
+      margin-bottom: 8px;
       flex-wrap: wrap;
     }
 
@@ -86,14 +114,14 @@
       font-weight: 600;
       color: #555;
       white-space: nowrap;
-      min-width: 70px;
+      min-width: 60px;
     }
 
     .row input {
       flex: 1;
-      min-width: 80px;
-      padding: 8px 10px;
-      font-size: 14px;
+      min-width: 60px;
+      padding: 6px 8px;
+      font-size: 13px;
       border: 1.5px solid #d9d9d9;
       border-radius: 4px;
       outline: none;
@@ -105,8 +133,8 @@
 
     /* ── buttons ── */
     button {
-      padding: 8px 16px;
-      font-size: 12px;
+      padding: 6px 14px;
+      font-size: 11px;
       font-weight: 700;
       letter-spacing: 0.07em;
       text-transform: uppercase;
@@ -122,19 +150,15 @@
     button:hover  { background: #fff; color: #121212; }
     button:active { background: #e8e8e8; }
 
-    button.outline {
-      background: #fff;
-      color: #121212;
-    }
-
+    button.outline { background: #fff; color: #121212; }
     button.outline:hover { background: #121212; color: #fff; }
 
     /* ── result text ── */
     .result {
-      margin-top: 10px;
-      font-size: 13px;
+      margin-top: 6px;
+      font-size: 12px;
       color: #27ae60;
-      min-height: 18px;
+      min-height: 16px;
       word-break: break-all;
     }
 
@@ -142,10 +166,10 @@
 
     /* ── inbox ── */
     #inbox {
-      min-height: 80px;
-      max-height: 220px;
+      flex: 1;
       overflow-y: auto;
-      padding: 10px 0 4px;
+      min-height: 0;
+      padding: 6px 0 4px;
     }
 
     #inbox p {
@@ -153,16 +177,29 @@
       padding: 8px 10px;
       border-radius: 4px;
       margin-bottom: 6px;
+      line-height: 1.4;
+    }
+
+    #inbox p.msg-recv {
       background: #f7f7f7;
       border-left: 3px solid #121212;
-      line-height: 1.4;
+    }
+
+    #inbox p.msg-sent {
+      background: #eaf4ff;
+      border-left: 3px solid #2980b9;
+      text-align: right;
+    }
+
+    #inbox p.msg-sent .badge {
+      background: #2980b9;
     }
 
     #inbox .empty {
       font-size: 13px;
       color: #aaa;
       text-align: center;
-      padding: 24px 0;
+      padding: 40px 0;
       background: none;
       border: none;
     }
@@ -181,17 +218,27 @@
       vertical-align: middle;
     }
 
+    /* ── send bar inside inbox card ── */
+    .send-bar {
+      flex-shrink: 0;
+      border-top: 1px solid #e8e8e8;
+      padding-top: 10px;
+      margin-top: 8px;
+    }
+
     /* ── peer list pre ── */
     #list-result {
-      font-size: 13px;
+      font-size: 12px;
       background: #f7f7f7;
       border-radius: 4px;
-      padding: 10px;
-      margin-top: 10px;
+      padding: 8px;
+      margin-top: 8px;
       white-space: pre-wrap;
       word-break: break-all;
       color: #333;
-      min-height: 40px;
+      min-height: 32px;
+      max-height: 100px;
+      overflow-y: auto;
     }
   </style>
   <script>
@@ -201,12 +248,21 @@
       el.className = "result" + (isErr ? " err" : "");
     }
 
+    function trackerBase() {
+      const v = document.getElementById("tracker-url").value.trim();
+      return v || window.location.origin;
+    }
+
     async function post(url, payload) {
       const r = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
+      if (r.status === 401) {
+        window.location.href = "/login.html";
+        return "";
+      }
       return r.text();
     }
 
@@ -215,16 +271,20 @@
       const ip       = document.getElementById("reg-ip").value.trim();
       const port     = parseInt(document.getElementById("reg-port").value.trim());
       try {
-        const result = await post("/submit-info", { username, ip, port });
+        const result = await post(trackerBase() + "/submit-info", { username, ip, port });
         out("reg-result", result);
       } catch(e) { out("reg-result", e.message, true); }
     }
 
     async function getList() {
       try {
-        const r = await fetch("/get-list");
+        const r = await fetch(trackerBase() + "/get-list");
         const text = await r.text();
         document.getElementById("list-result").textContent = text;
+        const peers = JSON.parse(text);
+        await Promise.all(Object.entries(peers).map(([username, info]) =>
+          post("/add-list", { username, ip: info.ip, port: info.port })
+        ));
       } catch(e) { document.getElementById("list-result").textContent = "Error: " + e.message; }
     }
 
@@ -239,16 +299,18 @@
     async function sendPeer() {
       const username = document.getElementById("send-username").value.trim();
       const message  = document.getElementById("send-msg").value;
+      const from     = document.getElementById("reg-username").value.trim();
       try {
-        const result = await post("/send-peer", { username, message });
+        const result = await post("/send-peer", { username, message, from });
         out("send-result", result);
       } catch(e) { out("send-result", e.message, true); }
     }
 
     async function broadcastPeer() {
       const message = document.getElementById("bc-msg").value;
+      const from    = document.getElementById("reg-username").value.trim();
       try {
-        const result = await post("/broadcast-peer", { message });
+        const result = await post("/broadcast-peer", { message, from });
         out("bc-result", result);
       } catch(e) { out("bc-result", e.message, true); }
     }
@@ -268,14 +330,17 @@
         }
         msgs.forEach(function(m) {
           const p = document.createElement("p");
-          p.innerHTML = '<span class="badge">From</span>' +
-                        '<strong>' + m.from + '</strong> — ' + m.text;
+          const isSent = m.from.startsWith("You →");
+          p.className = isSent ? "msg-sent" : "msg-recv";
+          p.innerHTML = '<span class="badge">' + (isSent ? "To" : "From") + '</span>' +
+                        '<strong>' + m.from.replace("You → ", "") + '</strong> — ' + m.text;
           box.appendChild(p);
         });
       } catch(e) {}
     }
 
     window.onload = function() {
+      document.getElementById("tracker-url").value = window.location.origin;
       pollMessages();
       setInterval(pollMessages, 3000);
     };
@@ -290,73 +355,74 @@
 
   <div class="layout">
 
-    <!-- 1. Register -->
-    <div class="card">
-      <div class="card-title">1 — Register with tracker</div>
-      <div class="row">
-        <label>Username</label>
-        <input id="reg-username" type="text" placeholder="alice">
+    <!-- Left column: 2-col subgrid -->
+    <div class="left-col">
+
+      <!-- Register: spans both cols -->
+      <div class="card span2">
+        <div class="card-title">1 — Register with tracker</div>
+        <div class="row">
+          <label>Tracker</label>
+          <input id="tracker-url" type="text" placeholder="http://127.0.0.1:2026">
+        </div>
+        <div class="row">
+          <label>Username</label>
+          <input id="reg-username" type="text" placeholder="username">
+        </div>
+        <div class="row">
+          <label>My IP</label>
+          <input id="reg-ip" type="text" value="127.0.0.1">
+          <label>Port</label>
+          <input id="reg-port" type="number" value="5000" style="max-width:80px">
+        </div>
+        <button onclick="submitInfo()">Register</button>
+        <p id="reg-result" class="result"></p>
       </div>
-      <div class="row">
-        <label>My IP</label>
-        <input id="reg-ip" type="text" value="127.0.0.1">
+
+      <!-- Online peers -->
+      <div class="card">
+        <div class="card-title">2 — Online peers</div>
+        <button class="outline" onclick="getList()">Refresh</button>
+        <pre id="list-result"></pre>
       </div>
-      <div class="row">
-        <label>P2P Port</label>
-        <input id="reg-port" type="number" value="5000">
+
+      <!-- Connect -->
+      <div class="card">
+        <div class="card-title">3 — Connect</div>
+        <div class="row">
+          <input id="conn-username" type="text" placeholder="username">
+          <button onclick="connectPeer()">Connect</button>
+        </div>
+        <p id="conn-result" class="result"></p>
       </div>
-      <button onclick="submitInfo()">Register</button>
-      <p id="reg-result" class="result"></p>
+
+      <!-- Broadcast: spans both cols -->
+      <div class="card span2">
+        <div class="card-title">5 — Broadcast to all</div>
+        <div class="row">
+          <label>Msg</label>
+          <input id="bc-msg" type="text" placeholder="Hello everyone!">
+          <button onclick="broadcastPeer()">Broadcast</button>
+        </div>
+        <p id="bc-result" class="result"></p>
+      </div>
+
     </div>
 
-    <!-- 2. Peer list -->
-    <div class="card">
-      <div class="card-title">2 — Online peers</div>
-      <button class="outline" onclick="getList()">Refresh list</button>
-      <pre id="list-result"></pre>
-    </div>
-
-    <!-- 3. Connect -->
-    <div class="card">
-      <div class="card-title">3 — Connect to peer</div>
-      <div class="row">
-        <label>Username</label>
-        <input id="conn-username" type="text" placeholder="bob">
-        <button onclick="connectPeer()">Connect</button>
+    <!-- Right column: inbox fills full height -->
+    <div class="right-col">
+      <div class="card">
+        <div class="card-title">Inbox</div>
+        <div id="inbox"><p class="empty">No messages yet</p></div>
+        <div class="send-bar">
+          <div class="row" style="margin-bottom:0">
+            <input id="send-username" type="text" placeholder="To" style="max-width:120px">
+            <input id="send-msg" type="text" placeholder="Message…">
+            <button onclick="sendPeer()">Send</button>
+          </div>
+          <p id="send-result" class="result"></p>
+        </div>
       </div>
-      <p id="conn-result" class="result"></p>
-    </div>
-
-    <!-- 4. Send -->
-    <div class="card">
-      <div class="card-title">4 — Send message</div>
-      <div class="row">
-        <label>To</label>
-        <input id="send-username" type="text" placeholder="bob">
-      </div>
-      <div class="row">
-        <label>Message</label>
-        <input id="send-msg" type="text" placeholder="Hello!">
-        <button onclick="sendPeer()">Send</button>
-      </div>
-      <p id="send-result" class="result"></p>
-    </div>
-
-    <!-- 5. Broadcast -->
-    <div class="card">
-      <div class="card-title">5 — Broadcast to all</div>
-      <div class="row">
-        <label>Message</label>
-        <input id="bc-msg" type="text" placeholder="Hello everyone!">
-        <button onclick="broadcastPeer()">Broadcast</button>
-      </div>
-      <p id="bc-result" class="result"></p>
-    </div>
-
-    <!-- 6. Inbox — full width -->
-    <div class="card full">
-      <div class="card-title">6 — Inbox &nbsp;<span style="font-weight:400;text-transform:none;letter-spacing:0;color:#bbb;">auto-refreshes every 3s</span></div>
-      <div id="inbox"><p class="empty">No messages yet</p></div>
     </div>
 
   </div>

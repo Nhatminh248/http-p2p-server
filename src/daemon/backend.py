@@ -43,8 +43,8 @@ from .dictionary import CaseInsensitiveDict
 import selectors
 sel = selectors.DefaultSelector()
 
-mode_async = "callback"
-# mode_async = "coroutine"
+# mode_async = "callback"
+mode_async = "coroutine"
 # mode_async = "threading"
 
 def handle_client(ip, port, conn, addr, routes):
@@ -63,38 +63,6 @@ def handle_client(ip, port, conn, addr, routes):
     # Handle client
     daemon.handle_client(conn, addr, routes)
 
-
-# Callback for handling new client (itself run in sync mode)
-def handle_client_callback(server, ip, port,conn, addr, routes):
-    """
-    Initialize connection instance and delegates the client handling logic to it.
-
-    :param ip (str): IP address of the server.
-    :param port (int): Port number the server is listening on.
-    :param routes (dict): Dictionary of route handlers.
-    """
-    print("[Backend] Invoke handle_client_callback accepted connection from {}".format(addr))
-
-    daemon = HttpAdapter(ip, port, conn, addr, routes)
-
-    # Handle client
-    daemon.handle_client(conn, addr, routes)
-
-
-# Coroutine async/await for handling new client
-async def handle_client_coroutine(reader, writer):
-    """
-    Coroutine in async communication to initialize connection instance
-    then delegates the client handling logic to it.
-
-    :param reader (StreamReader): Stream reader wrapper.
-    :param write (Stream write): Stream write wrapper.
-    """
-    addr = writer.get_extra_info("peername")
-    print("[Backend] Invoke handle_client_coroutine accepted connection from {}".format(addr))
-
-    daemon = HttpAdapter(None, None, None, None, None)
-    await daemon.handle_client_coroutine(reader, writer)
 
 async def async_server(ip="0.0.0.0", port=7000, routes={}):
     print("[Backend] async_server **ASYNC** listening on port {}".format(port))
@@ -158,23 +126,19 @@ def run_backend(ip, port, routes):
 
         if mode_async == "callback":
             server.setblocking(False)
-            sel.register(server, selectors.EVENT_READ, (handle_client_callback, ip, port, routes))
+            sel.register(server, selectors.EVENT_READ, (ip, port, routes))
 
         while True:
-            #
-            # Non-blocking communication:
-            #   + threading: one thread per connection
-            #   + callback:  selector-driven event loop
-            #   + coroutine: handled above via asyncio (returns before reaching here)
-            #
             if mode_async == "callback":
-                # Event-driven: selector drives accept and dispatch
+                # Event-driven: selector drives accept, thread handles each connection
                 events = sel.select(timeout=None)
                 for key, mask in events:
-                    cb, _ip, _port, _routes = key.data
+                    _ip, _port, _routes = key.data
                     conn, addr = key.fileobj.accept()
                     conn.setblocking(True)
-                    cb(key.fileobj, _ip, _port, conn, addr, _routes)
+                    t = threading.Thread(target=handle_client, args=(_ip, _port, conn, addr, _routes))
+                    t.daemon = True
+                    t.start()
 
             else:
                 # Blocking accept for threading mode

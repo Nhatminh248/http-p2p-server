@@ -10,6 +10,7 @@ import sys
 import os
 import importlib.util
 import json
+import asyncio
 
 from daemon import AsynapRous
 
@@ -20,6 +21,7 @@ peer_list = {}
 peer_connections = {}
 received_messages = []  # stores dicts: {"from": addr, "text": msg}
 _state_lock = threading.Lock()
+_self_p2p_port = None  # set at startup; used to skip self in broadcast
 
 app = AsynapRous()
 
@@ -77,8 +79,14 @@ async def hello(headers, body):
     return (json_str.encode("utf-8"))
 
 
+@app.route('/slow', methods=['GET'])
+async def slow(headers="", body=""):
+    await asyncio.sleep(5)
+    return json.dumps({"message": "slow response after 5s"}).encode("utf-8")
 
-# peer_list = {}  # { "username": {"ip": "...", "port": ...} }
+@app.route('/fast', methods=['GET'])
+async def fast(headers="", body=""):
+    return json.dumps({"message": "fast response"}).encode("utf-8")
 
 @app.route('/submit-info', methods=['POST'])
 def submit_info(headers="", body=""):
@@ -107,7 +115,7 @@ def add_list(headers="", body=""):
     return json.dumps({"status": "ok"}).encode("utf-8")
 
 @app.route('/get-list', methods=['GET'])
-def get_list(header="", body=""):
+def get_list(headers="", body=""):
     with _state_lock:
         return json.dumps(peer_list).encode("utf-8")
 
@@ -186,29 +194,24 @@ def send_peer(headers="", body=""):
         return json.dumps({"error": "Invalid JSON"}).encode("utf-8")
     target = data["username"]
     msg = data["message"]
-    
+    sender = data.get("from", "")
+
     with _state_lock:
         if target not in peer_list:
             return json.dumps({"error": "peer not found"}).encode("utf-8")
-        sock = peer_connections.get(target)
-    
-    if not sock:
-        with _state_lock:
-            info = peer_list[target]
-        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            sock.connect((info["ip"], info["port"]))
-        except (OSError, socket.timeout):
-            return json.dumps({"error": "connection failed"}).encode("utf-8")
-        with _state_lock:
-            peer_connections[target] = sock
-            
+        info = peer_list[target]
+
+    payload = json.dumps({"from": sender, "text": msg}).encode("utf-8")
+    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
-        sock.sendall(msg.encode("utf-8"))
-    except OSError:
-        with _state_lock:
-            peer_connections.pop(target, None)
+        sock.connect((info["ip"], info["port"]))
+        sock.sendall(payload)
+    except (OSError, socket.timeout):
         return json.dumps({"error": "send failed"}).encode("utf-8")
+    finally:
+        sock.close()
+    with _state_lock:
+        received_messages.append({"from": "You → " + target, "text": msg})
     return json.dumps({"status": "sent", "to": target}).encode("utf-8")
 
 
@@ -240,30 +243,32 @@ def broadcast_peer(headers="", body=""):
     except json.JSONDecodeError:
         return json.dumps({"error": "Invalid JSON"}).encode("utf-8")
     msg = data["message"]
+    sender = data.get("from", "")
     sent_count = 0
-    
+
     with _state_lock:
         targets = list(peer_list.items())
-    
+
+    payload = json.dumps({"from": sender, "text": msg}).encode("utf-8")
     for username, info in targets:
+        if info["port"] == _self_p2p_port:
+            continue
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
-            with _state_lock:
-                sock = peer_connections.get(username)
-            
-            if not sock:
-                sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                sock.connect((info["ip"], info["port"]))
-                with _state_lock:
-                    peer_connections[username] = sock
-            
-            sock.sendall(msg.encode("utf-8"))
+            sock.connect((info["ip"], info["port"]))
+            sock.sendall(payload)
             sent_count += 1
         except (OSError, socket.timeout):
-            with _state_lock:
-                peer_connections.pop(username, None)
+            pass
+        finally:
+            sock.close()
+    with _state_lock:
+        received_messages.append({"from": "You → all", "text": msg})
     return json.dumps({"status": "broadcast sent", "count": sent_count}).encode("utf-8")
 
 def create_sampleapp(ip, port, peer_port=5000):
+    global _self_p2p_port
+    _self_p2p_port = peer_port
     # Start P2P listener in background daemon thread
     t = threading.Thread(target=start_peer_listener, args=(peer_port,))
     t.daemon = True
@@ -286,12 +291,25 @@ def handle_peer_message(conn, addr):
     :param addr: (ip, port) of the connecting peer
     """
     try:
-        data = conn.recv(4096)
+        chunks = []
+        while True:
+            chunk = conn.recv(4096)
+            if not chunk:
+                break
+            chunks.append(chunk)
+        data = b''.join(chunks)
         if data:
-            text = data.decode('utf-8')
-            print(f"[P2P] Message from {addr[0]}:{addr[1]}: {text}")
+            raw = data.decode('utf-8')
+            try:
+                payload = json.loads(raw)
+                sender = payload.get("from") or "{}:{}".format(addr[0], addr[1])
+                text = payload.get("text", "")
+            except (json.JSONDecodeError, AttributeError):
+                sender = "{}:{}".format(addr[0], addr[1])
+                text = raw
+            print(f"[P2P] Message from {sender}: {text}")
             with _state_lock:
-                received_messages.append({"from": "{}:{}".format(addr[0], addr[1]), "text": text})
+                received_messages.append({"from": sender, "text": text})
     finally:
         conn.close()
 

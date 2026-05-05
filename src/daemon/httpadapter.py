@@ -130,22 +130,35 @@ class HttpAdapter:
                 msg = header_part + "\r\n\r\n" + body_part
 
         req.prepare(msg, routes)
+        if req.path is None:
+            conn.sendall(resp.build_notfound())
+            conn.close()
+            return
         print("[HttpAdapter] Invoke handle_client connection {}".format(addr))
 
-        # Auth check
-        if hasattr(req, 'auth') and req.auth:
-            username, password = req.auth
-            if not self.verify_auth(username, password):
-                conn.sendall(resp.build_401())
-                conn.close()
-                return
-            if req.path == '/login':
+        # CORS preflight
+        if req.method == 'OPTIONS':
+            conn.sendall(self._cors_preflight())
+            conn.close()
+            return
+
+        # Login: requires Basic Auth credentials
+        if req.path == '/login':
+            if hasattr(req, 'auth') and req.auth:
+                username, password = req.auth
+                if not self.verify_auth(username, password):
+                    conn.sendall(resp.build_401())
+                    conn.close()
+                    return
                 token = create_session(username)
                 conn.sendall(resp.build_200_with_cookie(token))
                 conn.close()
                 return
+            conn.sendall(resp.build_401())
+            conn.close()
+            return
 
-        # Session check
+        # All other paths: session cookie check only (ignore any auth header)
         if req.cookies:
             token = req.cookies.get('session', None)
             if token and not verify_session(token):
@@ -188,23 +201,28 @@ class HttpAdapter:
 
         req.prepare(msg.decode("utf-8"), routes=self.routes)
 
-        if hasattr(req, 'auth') and req.auth:
-            username, password = req.auth
+        if req.method == 'OPTIONS':
+            writer.write(self._cors_preflight())
+            await writer.drain()
+            return
 
-            if not self.verify_auth(username, password):
-                writer.write(resp.build_401())
-                await writer.drain()
-                return
-
-            if req.path == '/login':
+        if req.path == '/login':
+            if hasattr(req, 'auth') and req.auth:
+                username, password = req.auth
+                if not self.verify_auth(username, password):
+                    writer.write(resp.build_401())
+                    await writer.drain()
+                    return
                 token = create_session(username)
                 writer.write(resp.build_200_with_cookie(token))
                 await writer.drain()
                 return
+            writer.write(resp.build_401())
+            await writer.drain()
+            return
 
         if req.cookies:
             token = req.cookies.get('session', None)
-
             if token and not verify_session(token):
                 writer.write(resp.build_401())
                 await writer.drain()
@@ -271,6 +289,17 @@ class HttpAdapter:
 
         return response
 
+    def _cors_preflight(self):
+        return (
+            "HTTP/1.1 200 OK\r\n"
+            "Access-Control-Allow-Origin: *\r\n"
+            "Access-Control-Allow-Methods: GET, POST, PUT, DELETE, OPTIONS\r\n"
+            "Access-Control-Allow-Headers: Content-Type, Authorization\r\n"
+            "Content-Length: 0\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+        ).encode('utf-8')
+
     def build_json_response(self, req, content):
         """Builds an HTTP 200 response with JSON body as bytes.
 
@@ -288,6 +317,7 @@ class HttpAdapter:
         header = (
             "HTTP/1.1 200 OK\r\n"
             "Content-Type: application/json\r\n"
+            "Access-Control-Allow-Origin: *\r\n"
             "Content-Length: {}\r\n"
             "Connection: close\r\n"
             "\r\n"

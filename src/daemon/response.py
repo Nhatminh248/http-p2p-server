@@ -276,9 +276,8 @@ class Response():
                 "HTTP/1.1 401 Unauthorized\r\n"
                 "Accept-Ranges: bytes\r\n"
                 "Content-Type: text/html\r\n"
-                "Content-Length: 13\r\n"
-                "Cache-Control: max-age=86000\r\n"
-                "WWW-Authenticate: Basic realm='Login required'\r\n"
+                "Content-Length: 16\r\n"
+                "Cache-Control: no-store\r\n"
                 "Connection: close\r\n"
                 "\r\n"
                 "401 Unauthorized"
@@ -308,6 +307,9 @@ class Response():
         print("[Response] Start build response with req {}".format(request))
 
         path = request.path
+
+        if path is None:
+            return self.build_notfound()
 
         mime_type = self.get_mime_type(path)
         print("[Response] {} path {} mime_type {}".format(request.method, request.path, mime_type))
