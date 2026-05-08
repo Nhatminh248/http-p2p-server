@@ -24,8 +24,18 @@ channels = {}        # tracker-side: {channel_name: [username, ...]}
 _local_channels = {} # peer-side cache: {channel_name: [username, ...]}
 _state_lock = threading.Lock()
 _self_p2p_port = None  # set at startup; used to skip self in broadcast
+_self_username = None  # set on /submit-info; used for gossip identification
+_self_ip = None        # set on /submit-info; used in peer_announce messages
 
 app = AsynapRous()
+
+def _merge_peers(new_peers):
+    """Merge received peer data into peer_list. Must be called with _state_lock held."""
+    for uname, info in new_peers.items():
+        if isinstance(info, dict) and "ip" in info and "port" in info:
+            if uname not in peer_list:
+                peer_list[uname] = info
+                print(f"[Gossip] Learned peer: {uname} @ {info['ip']}:{info['port']}")
 
 @app.route('/login', methods=['POST'])
 def login(headers="guest", body="anonymous"):
@@ -92,6 +102,7 @@ async def fast(headers="", body=""):
 
 @app.route('/submit-info', methods=['POST'])
 def submit_info(headers="", body=""):
+    global _self_username, _self_ip
     try:
         data = json.loads(body)
     except json.JSONDecodeError:
@@ -101,6 +112,8 @@ def submit_info(headers="", body=""):
             "ip": data["ip"],
             "port": data["port"]
         }
+    _self_username = data["username"]
+    _self_ip = data["ip"]
     return json.dumps({"status": "ok"}).encode("utf-8")
 
 @app.route('/add-list', methods=['POST'])
@@ -207,8 +220,14 @@ def send_peer(headers="", body=""):
         if target not in peer_list:
             return json.dumps({"error": "peer not found"}).encode("utf-8")
         info = peer_list[target]
+        local_pl = dict(peer_list)
 
-    payload = json.dumps({"from": sender, "text": msg}).encode("utf-8")
+    payload = json.dumps({
+        "type": "message",
+        "from": sender,
+        "text": msg,
+        "peers": local_pl
+    }).encode("utf-8")
     sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
     try:
         sock.connect((info["ip"], info["port"]))
@@ -255,10 +274,16 @@ def broadcast_peer(headers="", body=""):
 
     with _state_lock:
         targets = list(peer_list.items())
+        local_pl = dict(peer_list)
 
-    payload = json.dumps({"from": sender, "text": msg}).encode("utf-8")
+    payload = json.dumps({
+        "type": "message",
+        "from": sender,
+        "text": msg,
+        "peers": local_pl
+    }).encode("utf-8")
     for username, info in targets:
-        if info["port"] == _self_p2p_port:
+        if username == _self_username or info["port"] == _self_p2p_port:
             continue
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
@@ -272,6 +297,40 @@ def broadcast_peer(headers="", body=""):
     with _state_lock:
         received_messages.append({"from": "You → all", "text": msg, "channel": ""})
     return json.dumps({"status": "broadcast sent", "count": sent_count}).encode("utf-8")
+
+
+@app.route('/announce-self', methods=['POST'])
+def announce_self(headers="", body=""):
+    """Broadcast this peer's presence to all known peers so they can survive without the tracker."""
+    if not (_self_username and _self_ip and _self_p2p_port):
+        return json.dumps({"error": "not registered"}).encode("utf-8")
+
+    with _state_lock:
+        targets = list(peer_list.items())
+
+    payload = json.dumps({
+        "type": "peer_announce",
+        "from": _self_username,
+        "username": _self_username,
+        "ip": _self_ip,
+        "port": _self_p2p_port
+    }).encode("utf-8")
+
+    count = 0
+    for username, info in targets:
+        if username == _self_username:
+            continue
+        sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            sock.settimeout(3)
+            sock.connect((info["ip"], info["port"]))
+            sock.sendall(payload)
+            count += 1
+        except (OSError, socket.timeout):
+            pass
+        finally:
+            sock.close()
+    return json.dumps({"status": "announced", "notified": count}).encode("utf-8")
 
 
 # ── Channel routes ────────────────────────────────────────────────────────────────────────────
@@ -352,7 +411,13 @@ def send_channel(headers="", body=""):
         members = list(_local_channels[channel])
         local_pl = dict(peer_list)
 
-    payload = json.dumps({"from": sender, "text": msg, "channel": channel}).encode("utf-8")
+    payload = json.dumps({
+        "type": "message",
+        "from": sender,
+        "text": msg,
+        "channel": channel,
+        "peers": local_pl
+    }).encode("utf-8")
     sent_count = 0
     for username in members:
         if username == sender:
@@ -360,7 +425,7 @@ def send_channel(headers="", body=""):
         if username not in local_pl:
             continue
         info = local_pl[username]
-        if info["port"] == _self_p2p_port:
+        if username == _self_username or info["port"] == _self_p2p_port:
             continue
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         try:
@@ -376,6 +441,42 @@ def send_channel(headers="", body=""):
     return json.dumps({"status": "sent", "channel": channel, "count": sent_count}).encode("utf-8")
 
 
+def _gossip_loop():
+    """
+    Background thread: every 30 s send a peer_exchange message to all known peers.
+    This keeps every peer's local list up-to-date so the network survives tracker failure.
+    """
+    import time
+    time.sleep(15)  # brief warm-up before first gossip round
+    while True:
+        time.sleep(30)
+        with _state_lock:
+            targets  = list(peer_list.items())
+            my_peers = dict(peer_list)
+
+        if not targets or not _self_username:
+            continue
+
+        payload = json.dumps({
+            "type": "peer_exchange",
+            "from": _self_username,
+            "peers": my_peers
+        }).encode("utf-8")
+
+        for username, info in targets:
+            if username == _self_username:
+                continue
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                sock.settimeout(3)
+                sock.connect((info["ip"], info["port"]))
+                sock.sendall(payload)
+            except (OSError, socket.timeout):
+                pass
+            finally:
+                sock.close()
+
+
 def create_sampleapp(ip, port, peer_port=5000):
     global _self_p2p_port
     _self_p2p_port = peer_port
@@ -383,6 +484,10 @@ def create_sampleapp(ip, port, peer_port=5000):
     t = threading.Thread(target=start_peer_listener, args=(peer_port,))
     t.daemon = True
     t.start()
+    # Start gossip thread for tracker-less peer discovery
+    g = threading.Thread(target=_gossip_loop)
+    g.daemon = True
+    g.start()
     # Prepare and launch the RESTful application
     app.prepare_address(ip, port)
     app.run()
@@ -391,11 +496,11 @@ def handle_peer_message(conn, addr):
     """
     Called in a new thread for each incoming P2P connection.
 
-    Responsibilities:
-    - conn.recv(4096) to read the raw bytes sent by the remote peer
-    - Decode the bytes (UTF-8) to get the message string
-    - Print or store the message so the user can see it
-    - Close conn when done
+    Handles three message types (keyed on "type" field):
+    - "message"       — chat message; embeds gossip peer list
+    - "peer_exchange" — pure gossip; merge peers, no inbox entry
+    - "peer_announce" — new peer broadcasting existence; add to peer_list
+    Legacy payloads without a "type" field are treated as "message".
 
     :param conn: accepted socket from the listener
     :param addr: (ip, port) of the connecting peer
@@ -408,18 +513,50 @@ def handle_peer_message(conn, addr):
                 break
             chunks.append(chunk)
         data = b''.join(chunks)
-        if data:
-            raw = data.decode('utf-8')
-            try:
-                payload = json.loads(raw)
-                sender = payload.get("from") or "{}:{}".format(addr[0], addr[1])
-                text = payload.get("text", "")
-            except (json.JSONDecodeError, AttributeError):
-                sender = "{}:{}".format(addr[0], addr[1])
-                text = raw
-            print(f"[P2P] Message from {sender}: {text}")
+        if not data:
+            return
+        raw = data.decode('utf-8')
+        try:
+            payload = json.loads(raw)
+        except (json.JSONDecodeError, AttributeError):
+            # Non-JSON legacy message
             with _state_lock:
-                received_messages.append({"from": sender, "text": text, "channel": payload.get("channel", "") if isinstance(payload, dict) else ""})
+                received_messages.append({"from": "{}:{}".format(addr[0], addr[1]), "text": raw, "channel": ""})
+            return
+
+        # Merge any embedded gossip peer list regardless of message type
+        embedded_peers = payload.get("peers")
+        if isinstance(embedded_peers, dict):
+            with _state_lock:
+                _merge_peers(embedded_peers)
+
+        msg_type = payload.get("type", "message")
+
+        if msg_type == "peer_exchange":
+            # Pure gossip heartbeat — nothing to display
+            return
+
+        if msg_type == "peer_announce":
+            uname = payload.get("username", "")
+            ip    = payload.get("ip", "")
+            port  = payload.get("port", 0)
+            if uname and ip and port:
+                with _state_lock:
+                    if uname not in peer_list:
+                        peer_list[uname] = {"ip": ip, "port": port}
+                        print(f"[Gossip] Peer announced: {uname} @ {ip}:{port}")
+            return
+
+        # Regular chat message
+        sender = payload.get("from") or "{}:{}".format(addr[0], addr[1])
+        text   = payload.get("text", "")
+        print(f"[P2P] Message from {sender}: {text}")
+        with _state_lock:
+            received_messages.append({
+                "from": sender,
+                "text": text,
+                "channel": payload.get("channel", "")
+            })
     finally:
         conn.close()
 

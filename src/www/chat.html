@@ -301,7 +301,8 @@
       color: #888;
     }
 
-    .status-pill.ok { background: #d4edda; color: #27ae60; }
+    .status-pill.ok  { background: #d4edda; color: #27ae60; }
+    .status-pill.err { background: #fde8e8; color: #c0392b; }
   </style>
   <script>
     // ── localStorage helpers ──────────────────────────────────────────────────
@@ -331,6 +332,19 @@
       } else {
         pill.textContent = "Offline";
         pill.className = "status-pill";
+      }
+    }
+
+    // ── Tracker health indicator ───────────────────────────────────────────────
+    function setTrackerStatus(ok) {
+      const pill = document.getElementById("tracker-status");
+      if (!pill) return;
+      if (ok) {
+        pill.textContent = "Tracker OK";
+        pill.className = "status-pill ok";
+      } else {
+        pill.textContent = "Tracker Down";
+        pill.className = "status-pill err";
       }
     }
 
@@ -373,54 +387,73 @@
       try {
         await post(trackerBase() + "/submit-info", { username, ip, port });
         setStatus(true);
+        setTrackerStatus(true);
         out("reg-result", "");
         await getList();
+        // Announce presence to known peers so they can find us without the tracker
+        post("/announce-self", {}).catch(() => {});
       } catch(e) {
         setStatus(false);
-        out("reg-result", "Tracker unreachable", true);
+        setTrackerStatus(false);
+        out("reg-result", "Tracker unreachable — using peer gossip", true);
+        // Still try to load peers from local gossip cache
+        await getList();
       }
     }
 
-    // ── Peer list ─────────────────────────────────────────────────────────────
-    async function getList() {
-      try {
-        const peers = await fetch(trackerBase() + "/get-list").then(r => r.json());
+    // ── Render peer list from a peers object ──────────────────────────────────
+    function renderPeers(peers) {
+      const ul = document.getElementById("peer-list");
+      ul.innerHTML = "";
+      const me = myUsername();
+      const others = Object.entries(peers).filter(([u]) => u !== me);
 
-        // Sync to local server
+      if (others.length === 0) {
+        const li = document.createElement("li");
+        li.className = "empty-peer";
+        li.textContent = "No other peers online";
+        ul.appendChild(li);
+        return;
+      }
+
+      others.forEach(([username, info]) => {
+        const li = document.createElement("li");
+        li.innerHTML =
+          '<span class="dot"></span>' +
+          '<span class="peer-name">' + username + '</span>' +
+          '<span class="peer-addr">' + info.ip + ':' + info.port + '</span>';
+        li.title = "Click to select as recipient";
+        li.onclick = () => {
+          document.getElementById("send-username").value = username;
+          document.getElementById("send-msg").focus();
+        };
+        ul.appendChild(li);
+      });
+    }
+
+    // ── Peer list — tracker-first, local gossip fallback ──────────────────────
+    async function getList() {
+      let peers;
+      try {
+        peers = await fetch(trackerBase() + "/get-list").then(r => r.json());
+        setTrackerStatus(true);
+        // Sync tracker data into local server so gossip stays current
         await Promise.all(Object.entries(peers).map(([username, info]) =>
           post("/add-list", { username, ip: info.ip, port: info.port })
         ));
-
-        const ul = document.getElementById("peer-list");
-        ul.innerHTML = "";
-        const me = myUsername();
-        const others = Object.entries(peers).filter(([u]) => u !== me);
-
-        if (others.length === 0) {
-          const li = document.createElement("li");
-          li.className = "empty-peer";
-          li.textContent = "No other peers online";
-          ul.appendChild(li);
+      } catch(e) {
+        setTrackerStatus(false);
+        // Tracker is down — fall back to the local peer list built via gossip
+        try {
+          peers = await fetch("/get-list").then(r => r.json());
+        } catch(e2) {
+          const ul = document.getElementById("peer-list");
+          ul.innerHTML = '<li class="empty-peer">Tracker down, no peers known yet</li>';
           return;
         }
-
-        others.forEach(([username, info]) => {
-          const li = document.createElement("li");
-          li.innerHTML =
-            '<span class="dot"></span>' +
-            '<span class="peer-name">' + username + '</span>' +
-            '<span class="peer-addr">' + info.ip + ':' + info.port + '</span>';
-          li.title = "Click to select as recipient";
-          li.onclick = () => {
-            document.getElementById("send-username").value = username;
-            document.getElementById("send-msg").focus();
-          };
-          ul.appendChild(li);
-        });
-      } catch(e) {
-        const ul = document.getElementById("peer-list");
-        ul.innerHTML = '<li class="empty-peer">Cannot reach tracker</li>';
       }
+
+      renderPeers(peers);
     }
 
     // ── Send / Broadcast ──────────────────────────────────────────────────────
@@ -448,15 +481,23 @@
 
     // ── Channels ──────────────────────────────────────────────────────────────
     async function listChannels() {
+      let data;
       try {
-        const data = await fetch(trackerBase() + "/list-channels").then(r => r.json());
-        document.getElementById("channel-list-result").textContent = JSON.stringify(data, null, 2);
+        data = await fetch(trackerBase() + "/list-channels").then(r => r.json());
+        // Push tracker data into local cache
         await Promise.all(Object.entries(data).map(([channel, members]) =>
           post("/sync-channel", { channel, members })
         ));
       } catch(e) {
-        document.getElementById("channel-list-result").textContent = "Cannot reach tracker";
+        // Tracker down — use locally cached channel list
+        try {
+          data = await fetch("/list-channels").then(r => r.json());
+        } catch(e2) {
+          document.getElementById("channel-list-result").textContent = "Tracker down, channels unavailable";
+          return;
+        }
       }
+      document.getElementById("channel-list-result").textContent = JSON.stringify(data, null, 2);
     }
 
     async function createChannel() {
@@ -605,7 +646,10 @@
       <div class="card">
         <div class="card-title">
           Online peers
-          <button class="outline sm" onclick="getList()">Refresh</button>
+          <span style="display:flex;align-items:center;gap:6px">
+            <span id="tracker-status" class="status-pill">Tracker ?</span>
+            <button class="outline sm" onclick="getList()">Refresh</button>
+          </span>
         </div>
         <ul id="peer-list">
           <li class="empty-peer">Not registered yet</li>
