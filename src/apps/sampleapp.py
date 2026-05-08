@@ -116,6 +116,11 @@ def add_list(headers="", body=""):
         }
     return json.dumps({"status": "ok"}).encode("utf-8")
 
+@app.route('/whoami', methods=['GET'])
+def whoami(headers="", body=""):
+    ip = headers.get('x-client-ip', '127.0.0.1') if isinstance(headers, dict) else '127.0.0.1'
+    return json.dumps({"ip": ip, "p2p_port": _self_p2p_port or 5000}).encode("utf-8")
+
 @app.route('/get-list', methods=['GET'])
 def get_list(headers="", body=""):
     with _state_lock:

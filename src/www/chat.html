@@ -16,7 +16,6 @@
       flex-direction: column;
     }
 
-    /* ── top bar ── */
     .topbar {
       flex-shrink: 0;
       width: 100%;
@@ -43,30 +42,24 @@
       margin-top: 1px;
     }
 
-    /* ── main layout: left controls | right inbox ── */
     .layout {
       flex: 1;
       display: grid;
-      grid-template-columns: 420px 1fr;
+      grid-template-columns: 400px 1fr;
       gap: 12px;
       padding: 12px 16px;
       overflow: hidden;
       min-height: 0;
     }
 
-    /* ── left column: 2-col subgrid ── */
     .left-col {
-      display: grid;
-      grid-template-columns: 1fr 1fr;
+      display: flex;
+      flex-direction: column;
       gap: 12px;
       overflow-y: auto;
-      align-content: start;
       padding-right: 2px;
     }
 
-    .left-col .span2 { grid-column: 1 / -1; }
-
-    /* ── right column: inbox fills full height ── */
     .right-col {
       display: flex;
       flex-direction: column;
@@ -80,7 +73,6 @@
       min-height: 0;
     }
 
-    /* ── card ── */
     .card {
       background: #fff;
       border: 1px solid #d9d9d9;
@@ -98,9 +90,11 @@
       padding-bottom: 8px;
       border-bottom: 1px solid #e8e8e8;
       flex-shrink: 0;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
 
-    /* ── form rows ── */
     .row {
       display: flex;
       align-items: center;
@@ -114,7 +108,7 @@
       font-weight: 600;
       color: #555;
       white-space: nowrap;
-      min-width: 60px;
+      min-width: 56px;
     }
 
     .row input {
@@ -131,7 +125,12 @@
 
     .row input:focus { border-color: #121212; }
 
-    /* ── buttons ── */
+    .row input[readonly] {
+      background: #f7f7f7;
+      color: #888;
+      cursor: default;
+    }
+
     button {
       padding: 6px 14px;
       font-size: 11px;
@@ -153,7 +152,11 @@
     button.outline { background: #fff; color: #121212; }
     button.outline:hover { background: #121212; color: #fff; }
 
-    /* ── result text ── */
+    button.sm {
+      padding: 3px 8px;
+      font-size: 10px;
+    }
+
     .result {
       margin-top: 6px;
       font-size: 12px;
@@ -164,7 +167,43 @@
 
     .result.err { color: #c0392b; }
 
-    /* ── inbox ── */
+    /* Peer list */
+    #peer-list {
+      list-style: none;
+      margin-top: 6px;
+      max-height: 120px;
+      overflow-y: auto;
+    }
+
+    #peer-list li {
+      font-size: 13px;
+      padding: 6px 8px;
+      border-radius: 4px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      transition: background 0.1s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    #peer-list li:hover { background: #f0f0f0; border-color: #d9d9d9; }
+    #peer-list li.empty-peer { color: #aaa; cursor: default; font-size: 12px; }
+    #peer-list li.empty-peer:hover { background: none; border-color: transparent; }
+
+    #peer-list li .peer-name { font-weight: 600; }
+    #peer-list li .peer-addr { font-size: 11px; color: #999; margin-left: auto; }
+
+    .dot {
+      display: inline-block;
+      width: 7px;
+      height: 7px;
+      border-radius: 50%;
+      background: #27ae60;
+      flex-shrink: 0;
+    }
+
+    /* Inbox */
     #inbox {
       flex: 1;
       overflow-y: auto;
@@ -191,9 +230,7 @@
       text-align: right;
     }
 
-    #inbox p.msg-sent .badge {
-      background: #2980b9;
-    }
+    #inbox p.msg-sent .badge { background: #2980b9; }
 
     #inbox .empty {
       font-size: 13px;
@@ -218,7 +255,6 @@
       vertical-align: middle;
     }
 
-    /* ── send bar inside inbox card ── */
     .send-bar {
       flex-shrink: 0;
       border-top: 1px solid #e8e8e8;
@@ -226,7 +262,6 @@
       margin-top: 8px;
     }
 
-    /* ── channel badge ── */
     .ch-badge {
       font-size: 10px;
       font-weight: 700;
@@ -239,31 +274,64 @@
       vertical-align: middle;
     }
 
-    /* ── peer list pre ── */
-    #list-result {
-      font-size: 12px;
-      background: #f7f7f7;
-      border-radius: 4px;
-      padding: 8px;
-      margin-top: 8px;
-      white-space: pre-wrap;
-      word-break: break-all;
-      color: #333;
-      min-height: 32px;
-      max-height: 100px;
-      overflow-y: auto;
+    /* Advanced toggle */
+    .advanced-toggle {
+      font-size: 11px;
+      color: #888;
+      cursor: pointer;
+      text-decoration: underline;
+      user-select: none;
+      margin-top: 4px;
+      display: inline-block;
     }
+
+    .advanced-section {
+      margin-top: 8px;
+      padding-top: 8px;
+      border-top: 1px dashed #e8e8e8;
+    }
+
+    /* Status pill */
+    .status-pill {
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: 10px;
+      background: #e8e8e8;
+      color: #888;
+    }
+
+    .status-pill.ok { background: #d4edda; color: #27ae60; }
   </style>
   <script>
+    // ── localStorage helpers ──────────────────────────────────────────────────
+    function save(key, val) { try { localStorage.setItem('chat_' + key, val); } catch(e) {} }
+    function load(key, def) { try { return localStorage.getItem('chat_' + key) || def; } catch(e) { return def; } }
+
+    function trackerBase() {
+      return document.getElementById("tracker-url").value.trim() || window.location.origin;
+    }
+
+    function myUsername() {
+      return document.getElementById("reg-username").value.trim();
+    }
+
     function out(id, text, isErr) {
       const el = document.getElementById(id);
+      if (!el) return;
       el.textContent = text;
       el.className = "result" + (isErr ? " err" : "");
     }
 
-    function trackerBase() {
-      const v = document.getElementById("tracker-url").value.trim();
-      return v || window.location.origin;
+    function setStatus(registered) {
+      const pill = document.getElementById("reg-status");
+      if (registered) {
+        pill.textContent = "Online";
+        pill.className = "status-pill ok";
+      } else {
+        pill.textContent = "Offline";
+        pill.className = "status-pill";
+      }
     }
 
     async function post(url, payload) {
@@ -272,99 +340,151 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload)
       });
-      if (r.status === 401) {
-        window.location.href = "/login.html";
-        return "";
-      }
+      if (r.status === 401) { window.location.href = "/login.html"; return ""; }
       return r.text();
     }
 
-    async function submitInfo() {
-      const username = document.getElementById("reg-username").value.trim();
-      const ip       = document.getElementById("reg-ip").value.trim();
-      const port     = parseInt(document.getElementById("reg-port").value.trim());
+    // ── Auto-fill IP and port from server ─────────────────────────────────────
+    async function autoFill() {
+      // Local server gives us the P2P port (it knows its own config)
       try {
-        const result = await post(trackerBase() + "/submit-info", { username, ip, port });
-        out("reg-result", result);
-      } catch(e) { out("reg-result", e.message, true); }
+        const info = await fetch('/whoami').then(r => r.json());
+        if (info.p2p_port) document.getElementById("reg-port").value = info.p2p_port;
+        if (info.ip) document.getElementById("reg-ip").value = info.ip;
+      } catch(e) {}
+
+      // Tracker sees our real outbound IP (better for cross-machine setups)
+      try {
+        const tInfo = await fetch(trackerBase() + '/whoami').then(r => r.json());
+        if (tInfo.ip && tInfo.ip !== '127.0.0.1') {
+          document.getElementById("reg-ip").value = tInfo.ip;
+        }
+      } catch(e) {}
     }
 
+    // ── Register ──────────────────────────────────────────────────────────────
+    async function submitInfo() {
+      const username = myUsername();
+      const ip       = document.getElementById("reg-ip").value.trim();
+      const port     = parseInt(document.getElementById("reg-port").value.trim());
+      if (!username) { out("reg-result", "Enter a username first", true); return; }
+      save('username', username);
+      save('tracker', trackerBase());
+      try {
+        await post(trackerBase() + "/submit-info", { username, ip, port });
+        setStatus(true);
+        out("reg-result", "");
+        await getList();
+      } catch(e) {
+        setStatus(false);
+        out("reg-result", "Tracker unreachable", true);
+      }
+    }
+
+    // ── Peer list ─────────────────────────────────────────────────────────────
     async function getList() {
       try {
-        const r = await fetch(trackerBase() + "/get-list");
-        const text = await r.text();
-        document.getElementById("list-result").textContent = text;
-        const peers = JSON.parse(text);
+        const peers = await fetch(trackerBase() + "/get-list").then(r => r.json());
+
+        // Sync to local server
         await Promise.all(Object.entries(peers).map(([username, info]) =>
           post("/add-list", { username, ip: info.ip, port: info.port })
         ));
-      } catch(e) { document.getElementById("list-result").textContent = "Error: " + e.message; }
+
+        const ul = document.getElementById("peer-list");
+        ul.innerHTML = "";
+        const me = myUsername();
+        const others = Object.entries(peers).filter(([u]) => u !== me);
+
+        if (others.length === 0) {
+          const li = document.createElement("li");
+          li.className = "empty-peer";
+          li.textContent = "No other peers online";
+          ul.appendChild(li);
+          return;
+        }
+
+        others.forEach(([username, info]) => {
+          const li = document.createElement("li");
+          li.innerHTML =
+            '<span class="dot"></span>' +
+            '<span class="peer-name">' + username + '</span>' +
+            '<span class="peer-addr">' + info.ip + ':' + info.port + '</span>';
+          li.title = "Click to select as recipient";
+          li.onclick = () => {
+            document.getElementById("send-username").value = username;
+            document.getElementById("send-msg").focus();
+          };
+          ul.appendChild(li);
+        });
+      } catch(e) {
+        const ul = document.getElementById("peer-list");
+        ul.innerHTML = '<li class="empty-peer">Cannot reach tracker</li>';
+      }
     }
 
-    async function connectPeer() {
-      const username = document.getElementById("conn-username").value.trim();
-      try {
-        const result = await post("/connect-peer", { username });
-        out("conn-result", result);
-      } catch(e) { out("conn-result", e.message, true); }
-    }
-
+    // ── Send / Broadcast ──────────────────────────────────────────────────────
     async function sendPeer() {
       const username = document.getElementById("send-username").value.trim();
       const message  = document.getElementById("send-msg").value;
-      const from     = document.getElementById("reg-username").value.trim();
+      const from     = myUsername();
+      if (!username || !message) return;
       try {
-        const result = await post("/send-peer", { username, message, from });
-        out("send-result", result);
+        await post("/send-peer", { username, message, from });
+        document.getElementById("send-msg").value = "";
       } catch(e) { out("send-result", e.message, true); }
     }
 
     async function broadcastPeer() {
       const message = document.getElementById("bc-msg").value;
-      const from    = document.getElementById("reg-username").value.trim();
+      const from    = myUsername();
+      if (!message) return;
       try {
         const result = await post("/broadcast-peer", { message, from });
         out("bc-result", result);
+        document.getElementById("bc-msg").value = "";
       } catch(e) { out("bc-result", e.message, true); }
     }
 
+    // ── Channels ──────────────────────────────────────────────────────────────
     async function listChannels() {
       try {
-        const r    = await fetch(trackerBase() + "/list-channels");
-        const data = await r.json();
+        const data = await fetch(trackerBase() + "/list-channels").then(r => r.json());
         document.getElementById("channel-list-result").textContent = JSON.stringify(data, null, 2);
         await Promise.all(Object.entries(data).map(([channel, members]) =>
           post("/sync-channel", { channel, members })
         ));
-      } catch(e) { document.getElementById("channel-list-result").textContent = "Error: " + e.message; }
+      } catch(e) {
+        document.getElementById("channel-list-result").textContent = "Cannot reach tracker";
+      }
     }
 
     async function createChannel() {
       const channel  = document.getElementById("ch-create-name").value.trim();
-      const username = document.getElementById("reg-username").value.trim();
+      const username = myUsername();
       try {
-        const result = await post(trackerBase() + "/create-channel", { channel, username });
-        out("ch-result", result);
+        await post(trackerBase() + "/create-channel", { channel, username });
+        out("ch-result", "Created #" + channel);
         await listChannels();
       } catch(e) { out("ch-result", e.message, true); }
     }
 
     async function joinChannel() {
       const channel  = document.getElementById("ch-action-name").value.trim();
-      const username = document.getElementById("reg-username").value.trim();
+      const username = myUsername();
       try {
-        const result = await post(trackerBase() + "/join-channel", { channel, username });
-        out("ch-result", result);
+        await post(trackerBase() + "/join-channel", { channel, username });
+        out("ch-result", "Joined #" + channel);
         await listChannels();
       } catch(e) { out("ch-result", e.message, true); }
     }
 
     async function leaveChannel() {
       const channel  = document.getElementById("ch-action-name").value.trim();
-      const username = document.getElementById("reg-username").value.trim();
+      const username = myUsername();
       try {
-        const result = await post(trackerBase() + "/leave-channel", { channel, username });
-        out("ch-result", result);
+        await post(trackerBase() + "/leave-channel", { channel, username });
+        out("ch-result", "Left #" + channel);
         await listChannels();
       } catch(e) { out("ch-result", e.message, true); }
     }
@@ -372,17 +492,18 @@
     async function sendChannel() {
       const channel = document.getElementById("ch-send-name").value.trim();
       const message = document.getElementById("ch-send-msg").value;
-      const from    = document.getElementById("reg-username").value.trim();
+      const from    = myUsername();
+      if (!channel || !message) return;
       try {
-        const result = await post("/send-channel", { channel, message, from });
-        out("ch-result", result);
+        await post("/send-channel", { channel, message, from });
+        document.getElementById("ch-send-msg").value = "";
       } catch(e) { out("ch-result", e.message, true); }
     }
 
+    // ── Inbox polling ─────────────────────────────────────────────────────────
     async function pollMessages() {
       try {
-        const r    = await fetch("/get-messages");
-        const msgs = await r.json();
+        const msgs = await fetch("/get-messages").then(r => r.json());
         const box  = document.getElementById("inbox");
         box.innerHTML = "";
         if (msgs.length === 0) {
@@ -402,14 +523,42 @@
                         '<strong>' + m.from.replace("You → ", "") + '</strong> — ' + m.text;
           box.appendChild(p);
         });
+        box.scrollTop = box.scrollHeight;
       } catch(e) {}
     }
 
-    window.onload = function() {
-      document.getElementById("tracker-url").value = window.location.origin;
+    // ── Enter key on send bar ─────────────────────────────────────────────────
+    function onSendKey(e) { if (e.key === 'Enter') sendPeer(); }
+    function onBcKey(e)   { if (e.key === 'Enter') broadcastPeer(); }
+    function onChSendKey(e) { if (e.key === 'Enter') sendChannel(); }
+
+    // ── Advanced section toggle ────────────────────────────────────────────────
+    function toggleAdvanced() {
+      const sec = document.getElementById("advanced-section");
+      const lnk = document.getElementById("advanced-toggle");
+      const hidden = sec.style.display === "none";
+      sec.style.display = hidden ? "block" : "none";
+      lnk.textContent = hidden ? "hide advanced" : "advanced";
+    }
+
+    // ── Init ──────────────────────────────────────────────────────────────────
+    window.onload = async function() {
+      // Restore persisted values
+      document.getElementById("reg-username").value = load('username', '');
+      document.getElementById("tracker-url").value  = load('tracker', window.location.origin);
+
+      // Auto-fill IP and port from server
+      await autoFill();
+
+      // Auto-register if we already have a username
+      if (myUsername()) {
+        await submitInfo();
+      }
+
       pollMessages();
       listChannels();
       setInterval(pollMessages, 3000);
+      setInterval(getList, 5000);
     };
   </script>
 </head>
@@ -422,64 +571,62 @@
 
   <div class="layout">
 
-    <!-- Left column: 2-col subgrid -->
+    <!-- Left column -->
     <div class="left-col">
 
-      <!-- Register: spans both cols -->
-      <div class="card span2">
-        <div class="card-title">1 — Register with tracker</div>
-        <div class="row">
-          <label>Tracker</label>
-          <input id="tracker-url" type="text" placeholder="http://127.0.0.1:2026">
+      <!-- Identity -->
+      <div class="card">
+        <div class="card-title">
+          Identity
+          <span id="reg-status" class="status-pill">Offline</span>
         </div>
         <div class="row">
           <label>Username</label>
-          <input id="reg-username" type="text" placeholder="username">
+          <input id="reg-username" type="text" placeholder="your name" autofocus>
+          <button onclick="submitInfo()">Join</button>
         </div>
-        <div class="row">
-          <label>My IP</label>
-          <input id="reg-ip" type="text" value="127.0.0.1">
-          <label>Port</label>
-          <input id="reg-port" type="number" value="5000" style="max-width:80px">
-        </div>
-        <button onclick="submitInfo()">Register</button>
         <p id="reg-result" class="result"></p>
+        <span class="advanced-toggle" id="advanced-toggle" onclick="toggleAdvanced()">advanced</span>
+        <div id="advanced-section" class="advanced-section" style="display:none">
+          <div class="row">
+            <label>Tracker</label>
+            <input id="tracker-url" type="text" placeholder="http://127.0.0.1:2026">
+          </div>
+          <div class="row">
+            <label>My IP</label>
+            <input id="reg-ip" type="text" placeholder="auto">
+            <label>Port</label>
+            <input id="reg-port" type="number" readonly style="max-width:80px">
+          </div>
+        </div>
       </div>
 
       <!-- Online peers -->
       <div class="card">
-        <div class="card-title">2 — Online peers</div>
-        <button class="outline" onclick="getList()">Refresh</button>
-        <pre id="list-result"></pre>
-      </div>
-
-      <!-- Connect -->
-      <div class="card">
-        <div class="card-title">3 — Connect</div>
-        <div class="row">
-          <input id="conn-username" type="text" placeholder="username">
-          <button onclick="connectPeer()">Connect</button>
+        <div class="card-title">
+          Online peers
+          <button class="outline sm" onclick="getList()">Refresh</button>
         </div>
-        <p id="conn-result" class="result"></p>
+        <ul id="peer-list">
+          <li class="empty-peer">Not registered yet</li>
+        </ul>
       </div>
 
-      <!-- Broadcast: spans both cols -->
-      <div class="card span2">
-        <div class="card-title">5 — Broadcast to all</div>
-        <div class="row">
-          <label>Msg</label>
-          <input id="bc-msg" type="text" placeholder="Hello everyone!">
-          <button onclick="broadcastPeer()">Broadcast</button>
+      <!-- Broadcast -->
+      <div class="card">
+        <div class="card-title">Broadcast to all</div>
+        <div class="row" style="margin-bottom:0">
+          <input id="bc-msg" type="text" placeholder="Message to everyone…" onkeydown="onBcKey(event)">
+          <button onclick="broadcastPeer()">Send</button>
         </div>
         <p id="bc-result" class="result"></p>
       </div>
 
-      <!-- Channels: spans both cols -->
-      <div class="card span2">
-        <div class="card-title">6 — Channels</div>
-
-        <div class="row">
-          <button class="outline" onclick="listChannels()">Refresh</button>
+      <!-- Channels -->
+      <div class="card">
+        <div class="card-title">
+          Channels
+          <button class="outline sm" onclick="listChannels()">Refresh</button>
         </div>
         <pre id="channel-list-result" style="font-size:12px;background:#f7f7f7;border-radius:4px;padding:8px;margin-bottom:8px;white-space:pre-wrap;word-break:break-all;max-height:80px;overflow-y:auto;color:#333;"></pre>
 
@@ -491,15 +638,15 @@
 
         <div class="row">
           <label>Channel</label>
-          <input id="ch-action-name" type="text" placeholder="channel name">
+          <input id="ch-action-name" type="text" placeholder="name">
           <button onclick="joinChannel()">Join</button>
           <button class="outline" onclick="leaveChannel()">Leave</button>
         </div>
 
         <div class="row">
-          <label>Send</label>
-          <input id="ch-send-name" type="text" placeholder="channel" style="max-width:100px">
-          <input id="ch-send-msg" type="text" placeholder="Message…">
+          <label>Send to</label>
+          <input id="ch-send-name" type="text" placeholder="#channel" style="max-width:100px">
+          <input id="ch-send-msg" type="text" placeholder="Message…" onkeydown="onChSendKey(event)">
           <button onclick="sendChannel()">Send</button>
         </div>
 
@@ -508,15 +655,15 @@
 
     </div>
 
-    <!-- Right column: inbox fills full height -->
+    <!-- Right column: inbox -->
     <div class="right-col">
       <div class="card">
         <div class="card-title">Inbox</div>
         <div id="inbox"><p class="empty">No messages yet</p></div>
         <div class="send-bar">
           <div class="row" style="margin-bottom:0">
-            <input id="send-username" type="text" placeholder="To" style="max-width:120px">
-            <input id="send-msg" type="text" placeholder="Message…">
+            <input id="send-username" type="text" placeholder="To (click a peer)" style="max-width:140px">
+            <input id="send-msg" type="text" placeholder="Message…" onkeydown="onSendKey(event)">
             <button onclick="sendPeer()">Send</button>
           </div>
           <p id="send-result" class="result"></p>

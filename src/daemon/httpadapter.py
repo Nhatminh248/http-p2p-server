@@ -130,6 +130,8 @@ class HttpAdapter:
                 msg = header_part + "\r\n\r\n" + body_part
 
         req.prepare(msg, routes)
+        if req.headers is not None and addr:
+            req.headers['x-client-ip'] = addr[0]
         if req.path is None:
             conn.sendall(resp.build_notfound())
             conn.close()
@@ -200,6 +202,8 @@ class HttpAdapter:
 
 
         req.prepare(msg.decode("utf-8"), routes=self.routes)
+        if req.headers is not None and addr:
+            req.headers['x-client-ip'] = addr[0]
 
         if req.method == 'OPTIONS':
             writer.write(self._cors_preflight())
