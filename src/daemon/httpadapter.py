@@ -13,8 +13,6 @@ from .request import Request
 from .response import Response
 from .dictionary import CaseInsensitiveDict
 
-import asyncio
-import inspect
 import json
 import secrets
 
@@ -176,78 +174,6 @@ class HttpAdapter:
 
         conn.sendall(response)
         conn.close()
-
-    async def handle_client_coroutine(self, reader, writer):
-        """
-        Handle an incoming client connection using stream reader writer asynchronously.
-
-        This method reads the request from the socket, prepares the request object,
-        invokes the appropriate route handler if available, builds the response,
-        and sends it back to the client.
-
-        :param conn (socket): The client socket connection.
-        :param addr (tuple): The client's address.
-        :param routes (dict): The route mapping for dispatching requests.
-        """
-        # Request handler
-        req = self.request
-        # Response handler
-        resp = self.response
-        
-        addr = writer.get_extra_info("peername")
-        print("[HttpAdapter] Invoke handle_client_coroutine connection {})".format(addr))
-
-        # TODO Handle the request asynchronously
-        msg = await reader.read(1024)
-
-
-        req.prepare(msg.decode("utf-8"), routes=self.routes)
-        if req.headers is not None and addr:
-            req.headers['x-client-ip'] = addr[0]
-
-        if req.method == 'OPTIONS':
-            writer.write(self._cors_preflight())
-            await writer.drain()
-            return
-
-        if req.path == '/login':
-            if hasattr(req, 'auth') and req.auth:
-                username, password = req.auth
-                if not self.verify_auth(username, password):
-                    writer.write(resp.build_401())
-                    await writer.drain()
-                    return
-                token = create_session(username)
-                writer.write(resp.build_200_with_cookie(token))
-                await writer.drain()
-                return
-            writer.write(resp.build_401())
-            await writer.drain()
-            return
-
-        if req.cookies:
-            token = req.cookies.get('session', None)
-            if token and not verify_session(token):
-                writer.write(resp.build_401())
-                await writer.drain()
-                return
-
-        # Handle request hook
-        if req.hook:
-            if inspect.iscoroutinefunction(req.hook):
-                result = await req.hook(req.headers, req.body)
-            else:
-                result = req.hook(req.headers, req.body)
-            response = self.build_json_response(req, result)
-        else:
-            response = resp.build_response(req)
-        #print("[HttpAdapter] Start **ASYNC** build_response with type {}".format(type(req)))
-
-        # Send all the response asynchronously
-        writer.write(response)
-        await writer.drain()
-        writer.close()
-        await writer.wait_closed()
 
     def extract_cookies(self, req, resp):
         """

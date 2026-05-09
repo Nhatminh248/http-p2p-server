@@ -10,7 +10,7 @@ import sys
 import os
 import importlib.util
 import json
-import asyncio
+import time
 
 from daemon import AsynapRous
 
@@ -73,7 +73,7 @@ def echo(headers="guest", body="anonymous"):
 
 
 @app.route('/hello', methods=['PUT'])
-async def hello(headers, body):
+def hello(headers, body):
     """
     Handle greeting via PUT request.
 
@@ -92,12 +92,12 @@ async def hello(headers, body):
 
 
 @app.route('/slow', methods=['GET'])
-async def slow(headers="", body=""):
-    await asyncio.sleep(5)
+def slow(headers="", body=""):
+    time.sleep(5)
     return json.dumps({"message": "slow response after 5s"}).encode("utf-8")
 
 @app.route('/fast', methods=['GET'])
-async def fast(headers="", body=""):
+def fast(headers="", body=""):
     return json.dumps({"message": "fast response"}).encode("utf-8")
 
 @app.route('/submit-info', methods=['POST'])
@@ -295,7 +295,7 @@ def broadcast_peer(headers="", body=""):
         finally:
             sock.close()
     with _state_lock:
-        received_messages.append({"from": "You → all", "text": msg, "channel": ""})
+        received_messages.append({"from": "You → Everyone", "text": msg, "channel": ""})
     return json.dumps({"status": "broadcast sent", "count": sent_count}).encode("utf-8")
 
 

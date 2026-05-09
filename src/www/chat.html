@@ -461,6 +461,7 @@
       const username = document.getElementById("send-username").value.trim();
       const message  = document.getElementById("send-msg").value;
       const from     = myUsername();
+      if (!from) { out("send-result", "Register a username first", true); return; }
       if (!username || !message) return;
       try {
         await post("/send-peer", { username, message, from });
@@ -471,6 +472,7 @@
     async function broadcastPeer() {
       const message = document.getElementById("bc-msg").value;
       const from    = myUsername();
+      if (!from) { out("bc-result", "Register a username first", true); return; }
       if (!message) return;
       try {
         const result = await post("/broadcast-peer", { message, from });
@@ -534,6 +536,7 @@
       const channel = document.getElementById("ch-send-name").value.trim();
       const message = document.getElementById("ch-send-msg").value;
       const from    = myUsername();
+      if (!from) { out("ch-result", "Register a username first", true); return; }
       if (!channel || !message) return;
       try {
         await post("/send-channel", { channel, message, from });

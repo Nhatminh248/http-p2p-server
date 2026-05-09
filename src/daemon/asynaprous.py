@@ -7,8 +7,6 @@ This module provides a AsynapRous object to deploy RESTful url web app with rout
 """
 
 from .backend import create_backend
-import asyncio
-import inspect
 
 class AsynapRous:
     """The fully mutable :class:`AsynapRous <AsynapRous>` object, which is a lightweight,
@@ -73,19 +71,11 @@ class AsynapRous:
             func._route_methods = methods
 
             def sync_wrapper(*args, **kwargs):
-               print("[AsynapRous] running sync function...  [{}] {}".format(methods, path))
+               print("[AsynapRous] running function... [{}] {}".format(methods, path))
                result = func(*args, **kwargs)
                return result
 
-            async def async_wrapper(*args, **kwargs):
-               print("[AsynapRous] running Async function... [{}] {}".format(methods, path))
-               result = await func(*args, **kwargs)
-               return result
-
-            if inspect.iscoroutinefunction(func):
-               return async_wrapper
-            else:
-               return sync_wrapper
+            return sync_wrapper
         return decorator
 
     def run(self):

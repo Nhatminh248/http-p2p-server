@@ -33,9 +33,6 @@ import socket
 import threading
 import argparse
 
-import asyncio
-import inspect
-
 from .response import *
 from .httpadapter import HttpAdapter
 from .dictionary import CaseInsensitiveDict
@@ -64,26 +61,49 @@ def handle_client(ip, port, conn, addr, routes):
     daemon.handle_client(conn, addr, routes)
 
 
-async def async_server(ip="0.0.0.0", port=7000, routes={}):
-    print("[Backend] async_server **ASYNC** listening on port {}".format(port))
-    if routes != {}:
+def selector_server(ip="0.0.0.0", port=7000, routes={}):
+    """
+    Non-blocking server using selectors for I/O multiplexing (replaces asyncio coroutine mode).
+    Accepts and handles all connections in a single event loop thread — no threads spawned.
+
+    :param ip (str): IP address to bind.
+    :param port (int): Port number to listen on.
+    :param routes (dict): Route handlers.
+    """
+    print("[Backend] selector_server **SELECTOR** listening on port {}".format(port))
+    if routes:
         print("[Backend] route settings")
         for key, value in routes.items():
-            isCoFunc = ""
-            if inspect.iscoroutinefunction(value):
-               isCoFunc += "**ASYNC** "
-            print("   + ('{}', '{}'): {}{}".format(key[0], key[1], isCoFunc, str(value)))
+            print("   + ('{}', '{}'): {}".format(key[0], key[1], str(value)))
 
-    async def _handle_client_coroutine(reader, writer):
-        addr = writer.get_extra_info("peername")
-        print("[Backend] Invoke handle_client_coroutine accepted connection from {}".format(addr))
-        daemon = HttpAdapter(None, None, None, None, routes)
-        await daemon.handle_client_coroutine(reader, writer)
+    _sel = selectors.DefaultSelector()
+    server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+    server.bind((ip, port))
+    server.listen(50)
+    server.setblocking(False)
+    _sel.register(server, selectors.EVENT_READ, data=None)
 
-    srv = await asyncio.start_server(_handle_client_coroutine, ip, port)
-    async with srv:
-        await srv.serve_forever()
-    return
+    try:
+        while True:
+            events = _sel.select(timeout=None)
+            for key, mask in events:
+                if key.data is None:
+                    # Server socket ready: accept a new connection
+                    conn, addr = key.fileobj.accept()
+                    conn.setblocking(True)
+                    _sel.register(conn, selectors.EVENT_READ, data=(addr, routes))
+                else:
+                    # Client socket ready: read and handle inline
+                    addr, _routes = key.data
+                    conn = key.fileobj
+                    _sel.unregister(conn)
+                    handle_client(ip, port, conn, addr, _routes)
+    except KeyboardInterrupt:
+        pass
+    finally:
+        _sel.close()
+        server.close()
 
 
 def run_backend(ip, port, routes):
@@ -103,9 +123,8 @@ def run_backend(ip, port, routes):
     print("[Backend] run_backend with routes={}".format(routes))
     # Process async stream for registering the service and terminate
     if mode_async == "coroutine":
-
-       asyncio.run(async_server(ip, port, routes))
-       return
+        selector_server(ip, port, routes)
+        return
 
     # Process socket object
     server = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -119,10 +138,7 @@ def run_backend(ip, port, routes):
         if routes != {}:
             print("[Backend] route settings")
             for key, value in routes.items():
-               isCoFunc = ""
-               if inspect.iscoroutinefunction(value):
-                  isCoFunc += "**ASYNC** "
-               print("   + ('{}', '{}'): {}{}".format(key[0], key[1], isCoFunc, str(value)))
+               print("   + ('{}', '{}'): {}".format(key[0], key[1], str(value)))
 
         if mode_async == "callback":
             server.setblocking(False)
