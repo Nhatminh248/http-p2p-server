@@ -80,7 +80,7 @@ class HttpAdapter:
         #: Request
         self.request = Request()
         #: Response
-        self.response = Response()
+        self.response = Response(port=port)
 
     def handle_client(self, conn, addr, routes):
         """
@@ -160,7 +160,8 @@ class HttpAdapter:
 
         # All other paths: session cookie check only (ignore any auth header)
         if req.cookies:
-            token = req.cookies.get('session', None)
+            cookie_name = f"session_{self.port}"
+            token = req.cookies.get(cookie_name, None)
             if token and not verify_session(token):
                 conn.sendall(resp.build_401())
                 conn.close()

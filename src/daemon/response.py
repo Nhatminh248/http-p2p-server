@@ -1,14 +1,14 @@
-
 """
 daemon.response
 ~~~~~~~~~~~~~~~~~
 
-This module provides a :class: `Response <Response>` object to manage and persist 
+This module provides a :class: `Response <Response>` object to manage and persist
 response settings (cookies, auth, proxies), and to construct HTTP responses
-based on incoming requests. 
+based on incoming requests.
 
 The current version supports MIME type detection, content loading and header formatting
 """
+
 import datetime
 import os
 import mimetypes
@@ -16,7 +16,8 @@ from .dictionary import CaseInsensitiveDict
 
 BASE_DIR = ""
 
-class Response():   
+
+class Response:
     """The :class:`Response <Response>` object, which contains a
     server's response to an HTTP request.
 
@@ -24,7 +25,7 @@ class Response():
     should not be instantiated manually; doing so may produce undesirable
     effects.
 
-    :class:`Response <Response>` object encapsulates headers, content, 
+    :class:`Response <Response>` object encapsulates headers, content,
     status code, cookies, and metadata related to the request-response cycle.
     It is used to construct and serve HTTP responses in a custom web server.
 
@@ -64,8 +65,7 @@ class Response():
         "reason",
     ]
 
-
-    def __init__(self, request=None):
+    def __init__(self, request=None, port=None):
         """
         Initializes a new :class:`Response <Response>` object.
 
@@ -107,6 +107,8 @@ class Response():
         #: is a response.
         self.request = None
 
+        #: The port number of the server.
+        self.port = port
 
     def get_mime_type(self, path):
         """
@@ -120,11 +122,10 @@ class Response():
         try:
             mime_type, _ = mimetypes.guess_type(path)
         except Exception:
-            return 'application/octet-stream'
-        return mime_type or 'application/octet-stream'
+            return "application/octet-stream"
+        return mime_type or "application/octet-stream"
 
-
-    def prepare_content_type(self, mime_type='text/html'):
+    def prepare_content_type(self, mime_type="text/html"):
         """
         Prepares the Content-Type header and determines the base directory
         for serving the file based on its MIME type.
@@ -135,7 +136,7 @@ class Response():
 
         :raises ValueError: If the MIME type is unsupported.
         """
-        
+
         base_dir = ""
 
         # Validate header attr existence
@@ -143,39 +144,44 @@ class Response():
             self.headers = {}
 
         # Processing mime_type based on main_type and sub_type
-        main_type, sub_type = mime_type.split('/', 1)
-        print("[Response] Processing main_type={} sub_type={}".format(main_type,sub_type))
-        if main_type == 'text':
-            self.headers['Content-Type']='text/{}'.format(sub_type)
-            if sub_type == 'html':
-                base_dir = BASE_DIR+"www/"
-            elif sub_type in ('javascript', 'plain', 'css'):
-                base_dir = BASE_DIR+"static/"
+        main_type, sub_type = mime_type.split("/", 1)
+        print(
+            "[Response] Processing main_type={} sub_type={}".format(main_type, sub_type)
+        )
+        if main_type == "text":
+            self.headers["Content-Type"] = "text/{}".format(sub_type)
+            if sub_type == "html":
+                base_dir = BASE_DIR + "www/"
+            elif sub_type in ("javascript", "plain", "css"):
+                base_dir = BASE_DIR + "static/"
             else:
-                base_dir = BASE_DIR+"static/"
-        elif main_type == 'image':
-            base_dir = BASE_DIR+"static/"
-            self.headers['Content-Type']='image/{}'.format(sub_type)
-        elif main_type == 'application':
-            base_dir = BASE_DIR+"apps/"
-            self.headers['Content-Type']='application/{}'.format(sub_type)
+                base_dir = BASE_DIR + "static/"
+        elif main_type == "image":
+            base_dir = BASE_DIR + "static/"
+            self.headers["Content-Type"] = "image/{}".format(sub_type)
+        elif main_type == "application":
+            base_dir = BASE_DIR + "apps/"
+            self.headers["Content-Type"] = "application/{}".format(sub_type)
         #
         #  TODO: process other mime_type
-        #        application/xml       
+        #        application/xml
         #        application/zip
         #        ...
         #        text/csv
         #        text/xml
         #        ...
-        #        video/mp4 
+        #        video/mp4
         #        video/mpeg
         #        ...
         #
         else:
-            raise ValueError("Invalid MEME type: main_type={} sub_type={}".format(main_type,sub_type))
+            raise ValueError(
+                "Invalid MEME type: main_type={} sub_type={}".format(
+                    main_type, sub_type
+                )
+            )
 
         return base_dir
-
 
     def build_content(self, path, base_dir):
         """
@@ -187,21 +193,20 @@ class Response():
         :rtype tuple: (int, bytes) representing content length and content data.
         """
 
-        filepath = os.path.join(base_dir, path.lstrip('/'))
+        filepath = os.path.join(base_dir, path.lstrip("/"))
 
         print("[Response] Serving the object at location {}".format(filepath))
-            #
-            #  TODO: implement the step of fetch the object file
-            #        store in the return value of content
-            #
+        #
+        #  TODO: implement the step of fetch the object file
+        #        store in the return value of content
+        #
         try:
             with open(filepath, "rb") as f:
-               content = f.read()
+                content = f.read()
         except Exception as e:
             print("[Response] build_content exception: {}".format(e))
             return -1, b""
         return len(content), content
-
 
     def build_response_header(self, request):
         """
@@ -215,43 +220,46 @@ class Response():
         reqhdr = request.headers
         rsphdr = self.headers
 
-        #Build dynamic headers
+        # Build dynamic headers
         headers = {
-                "Accept": "{}".format(reqhdr.get("Accept", "application/json")),
-                "Accept-Language": "{}".format(reqhdr.get("Accept-Language", "en-US,en;q=0.9")),
-                "Accept-Charset": "utf-8",
-                "Cache-Control": "no-cache",
-                "Content-Type": "{}".format(self.headers['Content-Type']),
-                "Content-Length": "{}".format(len(self._content)),
-        #       "Cookie": "{}".format(reqhdr.get("Cookie", "sessionid=xyz789")), #dummy cooki
-        #
-        # TODO prepare the request authentication
-        #
-        #       self.auth = ...
-                "Date": "{}".format(datetime.datetime.utcnow().strftime("%a, %d %b %Y %H:%M:%S GMT")),
-                "Max-Forward": "10",
-                "Pragma": "no-cache",
-                "Proxy-Authorization": "Basic dXNlcjpwYXNz",  # example base64
-                "Warning": "199 Miscellaneous warning",
-                "User-Agent": "{}".format(reqhdr.get("User-Agent", "Chrome/123.0.0.0")),
-            }
-
-        # Header text alignment
-            #
-            #  TODO: implement the header building to create formated
-            #        header from the provied headers
-            #
+            "Accept": "{}".format(reqhdr.get("Accept", "application/json")),
+            "Accept-Language": "{}".format(
+                reqhdr.get("Accept-Language", "en-US,en;q=0.9")
+            ),
+            "Accept-Charset": "utf-8",
+            "Cache-Control": "no-cache",
+            "Content-Type": "{}".format(self.headers["Content-Type"]),
+            "Content-Length": "{}".format(len(self._content)),
+            #       "Cookie": "{}".format(reqhdr.get("Cookie", "sessionid=xyz789")), #dummy cooki
             #
             # TODO prepare the request authentication
             #
-            # self.auth = ...
+            #       self.auth = ...
+            "Date": "{}".format(
+                datetime.datetime.utcnow().strftime("%a, %d %b %Y %H:%M:%S GMT")
+            ),
+            "Max-Forward": "10",
+            "Pragma": "no-cache",
+            "Proxy-Authorization": "Basic dXNlcjpwYXNz",  # example base64
+            "Warning": "199 Miscellaneous warning",
+            "User-Agent": "{}".format(reqhdr.get("User-Agent", "Chrome/123.0.0.0")),
+        }
+
+        # Header text alignment
+        #
+        #  TODO: implement the header building to create formated
+        #        header from the provied headers
+        #
+        #
+        # TODO prepare the request authentication
+        #
+        # self.auth = ...
 
         fmt_header = "HTTP/1.1 {} {}\r\n".format(self.status_code, self.reason)
         for key, value in headers.items():
             fmt_header = fmt_header + key + ": " + value + "\r\n"
         fmt_header += "\r\n"
-        return str(fmt_header).encode('utf-8')
-
+        return str(fmt_header).encode("utf-8")
 
     def build_notfound(self):
         """
@@ -261,40 +269,41 @@ class Response():
         """
 
         return (
-                "HTTP/1.1 404 Not Found\r\n"
-                "Accept-Ranges: bytes\r\n"
-                "Content-Type: text/html\r\n"
-                "Content-Length: 13\r\n"
-                "Cache-Control: max-age=86000\r\n"
-                "Connection: close\r\n"
-                "\r\n"
-                "404 Not Found"
-            ).encode('utf-8')
+            "HTTP/1.1 404 Not Found\r\n"
+            "Accept-Ranges: bytes\r\n"
+            "Content-Type: text/html\r\n"
+            "Content-Length: 13\r\n"
+            "Cache-Control: max-age=86000\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            "404 Not Found"
+        ).encode("utf-8")
 
     def build_401(self):
-         return (
-                "HTTP/1.1 401 Unauthorized\r\n"
-                "Accept-Ranges: bytes\r\n"
-                "Content-Type: text/html\r\n"
-                "Content-Length: 16\r\n"
-                "Cache-Control: no-store\r\n"
-                "Connection: close\r\n"
-                "\r\n"
-                "401 Unauthorized"
-                ).encode('utf-8')
+        return (
+            "HTTP/1.1 401 Unauthorized\r\n"
+            "Accept-Ranges: bytes\r\n"
+            "Content-Type: text/html\r\n"
+            "Content-Length: 16\r\n"
+            "Cache-Control: no-store\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            "401 Unauthorized"
+        ).encode("utf-8")
 
     def build_200_with_cookie(self, token):
+        cookie_name = f"session_{self.port}" if self.port else "session"
         return (
-                "HTTP/1.1 200 OK \r\n"
-                f"Set-Cookie: session={token}; Path=/\r\n"
-                "Accept-Ranges: bytes\r\n"
-                "Content-Type: text/html\r\n"
-                "Content-Length: 16\r\n"
-                "Cache-Control: max-age=86000\r\n"
-                "Connection: close\r\n"
-                "\r\n"
-                "Login successful"
-                ).encode('utf-8')
+            "HTTP/1.1 200 OK \r\n"
+            f"Set-Cookie: {cookie_name}={token}; Path=/\r\n"
+            "Accept-Ranges: bytes\r\n"
+            "Content-Type: text/html\r\n"
+            "Content-Length: 16\r\n"
+            "Cache-Control: max-age=86000\r\n"
+            "Connection: close\r\n"
+            "\r\n"
+            "Login successful"
+        ).encode("utf-8")
 
     def build_response(self, request, envelop_content=None):
         """
@@ -312,19 +321,23 @@ class Response():
             return self.build_notfound()
 
         mime_type = self.get_mime_type(path)
-        print("[Response] {} path {} mime_type {}".format(request.method, request.path, mime_type))
+        print(
+            "[Response] {} path {} mime_type {}".format(
+                request.method, request.path, mime_type
+            )
+        )
 
         base_dir = ""
 
-        #If HTML, parse and serve embedded objects
-        if path.endswith('.html') or mime_type == 'text/html':
-            base_dir = self.prepare_content_type(mime_type = 'text/html')
-        elif mime_type == 'text/css':
-            base_dir = self.prepare_content_type(mime_type = 'text/css')
-        elif mime_type in ('text/javascript', 'application/javascript'):
-            base_dir = self.prepare_content_type(mime_type = 'text/javascript')
-        elif mime_type == 'application/json' or mime_type == 'application/octet-stream':
-            base_dir = self.prepare_content_type(mime_type = 'application/json')
+        # If HTML, parse and serve embedded objects
+        if path.endswith(".html") or mime_type == "text/html":
+            base_dir = self.prepare_content_type(mime_type="text/html")
+        elif mime_type == "text/css":
+            base_dir = self.prepare_content_type(mime_type="text/css")
+        elif mime_type in ("text/javascript", "application/javascript"):
+            base_dir = self.prepare_content_type(mime_type="text/javascript")
+        elif mime_type == "application/json" or mime_type == "application/octet-stream":
+            base_dir = self.prepare_content_type(mime_type="application/json")
             envelop_content = ""
         else:
             return self.build_notfound()
