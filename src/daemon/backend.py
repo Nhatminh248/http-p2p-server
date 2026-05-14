@@ -31,11 +31,8 @@ Usage Example:
 
 import socket
 import threading
-import argparse
 
-from .response import *
 from .httpadapter import HttpAdapter
-from .dictionary import CaseInsensitiveDict
 
 import selectors
 sel = selectors.DefaultSelector()
@@ -43,6 +40,7 @@ sel = selectors.DefaultSelector()
 # mode_async = "callback"
 mode_async = "coroutine"
 # mode_async = "threading"
+
 
 def handle_client(ip, port, conn, addr, routes):
     """
